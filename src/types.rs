@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeSet, HashSet},
     hash::Hash,
+    usize,
 };
 
 use bytes::Buf;
@@ -114,8 +115,7 @@ impl ToNoDelimiter for String {
 
 impl FromNoDelimiter for String {
     fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
-        let (n, o) = u64::from_no_delimiter_bytes(b);
-        let n = n as usize;
+        let (n, o) = usize::from_no_delimiter_bytes(b);
         let v = b[o..o + n].to_vec();
         (String::from_utf8(v).expect("Fail to parse"), o + n)
     }

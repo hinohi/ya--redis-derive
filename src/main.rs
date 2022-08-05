@@ -11,6 +11,7 @@ struct MyStruct {
     v: Vec<usize>,
     o1: Option<i8>,
     o2: Option<u16>,
+    s: String,
 }
 
 impl ToRedisArgs for MyStruct {
@@ -23,6 +24,7 @@ impl ToRedisArgs for MyStruct {
         self.v.to_no_delimiter_bytes(&mut buf);
         self.o1.to_no_delimiter_bytes(&mut buf);
         self.o2.to_no_delimiter_bytes(&mut buf);
+        self.s.to_no_delimiter_bytes(&mut buf);
         out.write_arg(&buf);
     }
 }
@@ -38,8 +40,10 @@ impl FromRedisValue for MyStruct {
                 o += offset;
                 let (o1, offset) = FromNoDelimiter::from_no_delimiter_bytes(&b[o..]);
                 o += offset;
-                let (o2, _) = FromNoDelimiter::from_no_delimiter_bytes(&b[o..]);
-                Ok(MyStruct { a, v, o1, o2 })
+                let (o2, offset) = FromNoDelimiter::from_no_delimiter_bytes(&b[o..]);
+                o += offset;
+                let (s, _) = FromNoDelimiter::from_no_delimiter_bytes(&b[o..]);
+                Ok(MyStruct { a, v, o1, o2, s })
             }
             _ => Err(RedisError::from((
                 ErrorKind::TypeError,
@@ -58,6 +62,7 @@ fn main() {
         v: vec![0, 1, 254, 255, 1 << 40],
         o1: None,
         o2: Some(256),
+        s: String::from("あいうえおabcdefg"),
     };
     println!("{:?}", a);
 
