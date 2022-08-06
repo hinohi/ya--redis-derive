@@ -1,5 +1,13 @@
 use redis::{FromRedisValue, ToRedisArgs, Value};
+use std::fmt::Debug;
 use ya_redis_derive::Redis;
+
+fn do_test<T: FromRedisValue + ToRedisArgs + PartialEq + Debug>(v: T) {
+    let mut args = v.to_redis_args();
+    assert_eq!(args.len(), 1);
+    let v2 = T::from_redis_value(&Value::Data(args.pop().unwrap())).unwrap();
+    assert_eq!(v, v2);
+}
 
 #[derive(Debug, Eq, PartialEq, Redis)]
 struct A {
@@ -21,10 +29,7 @@ fn test_struct_named() {
         e: u128::MAX,
         f: (None, false),
     };
-    let mut args = a.to_redis_args();
-    assert_eq!(args.len(), 1);
-    let a2 = A::from_redis_value(&Value::Data(args.pop().unwrap())).unwrap();
-    assert_eq!(a, a2);
+    do_test(a);
 }
 
 #[derive(Debug, Eq, PartialEq, Redis)]
@@ -33,10 +38,7 @@ struct B(bool, Vec<u8>, String, i32);
 #[test]
 fn test_struct_unnamed() {
     let b = B(true, vec![0; 1000], String::from("abc"), 123);
-    let mut args = b.to_redis_args();
-    assert_eq!(args.len(), 1);
-    let b2 = B::from_redis_value(&Value::Data(args.pop().unwrap())).unwrap();
-    assert_eq!(b, b2);
+    do_test(b);
 }
 
 #[derive(Debug, Eq, PartialEq, Redis)]
@@ -44,9 +46,19 @@ struct C;
 
 #[test]
 fn test_struct_unit() {
-    let c = C;
-    let mut args = c.to_redis_args();
-    assert_eq!(args.len(), 1);
-    let c2 = C::from_redis_value(&Value::Data(args.pop().unwrap())).unwrap();
-    assert_eq!(c, c2);
+    do_test(C);
+}
+
+#[derive(Debug, Eq, PartialEq, Redis)]
+struct D<T: Copy> {
+    a: T,
+}
+
+#[derive(Debug, Eq, PartialEq, Redis)]
+struct E<T: Eq>(T);
+
+#[test]
+fn test_struct_generics() {
+    do_test(D { a: 42i32 });
+    do_test(E(vec![1, 2, 3]));
 }
