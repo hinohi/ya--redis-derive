@@ -1,7 +1,6 @@
 use std::{
-    collections::{BTreeSet, HashSet},
-    hash::Hash,
-    usize,
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
+    hash::{BuildHasher, Hash},
 };
 
 use bytes::Buf;
@@ -144,33 +143,133 @@ impl<T: FromNoDelimiter> FromNoDelimiter for Option<T> {
     }
 }
 
-macro_rules! impl_no_delimiter_to_iter {
-    ($typ:ident $(,$boundary:ident)*) => {
-        impl<T: ToNoDelimiter $(+$boundary)*> ToNoDelimiter for $typ<T> {
-            fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
-                self.len().to_no_delimiter_bytes(out);
-                for i in self.iter() {
-                    i.to_no_delimiter_bytes(out);
-                }
-            }
-        }
-
-        impl<T: FromNoDelimiter $(+$boundary)*> FromNoDelimiter for $typ<T> {
-            fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
-                let (n, mut o) = usize::from_no_delimiter_bytes(b);
-                let ret = (0..n)
-                    .map(|_| {
-                        let (i, oo) = T::from_no_delimiter_bytes(&b[o..]);
-                        o += oo;
-                        i
-                    })
-                    .collect();
-                (ret, o)
-            }
+macro_rules! inner_to_no_delimiter_iter {
+    ($self:ident, $out:ident) => {
+        $self.len().to_no_delimiter_bytes($out);
+        for i in $self.iter() {
+            i.to_no_delimiter_bytes($out);
         }
     };
 }
 
-impl_no_delimiter_to_iter!(Vec);
-impl_no_delimiter_to_iter!(HashSet, Eq, Hash);
-impl_no_delimiter_to_iter!(BTreeSet, Ord);
+macro_rules! inner_from_no_delimiter_iter {
+    ($b:ident) => {{
+        let (n, mut o) = usize::from_no_delimiter_bytes($b);
+        let ret = (0..n)
+            .map(|_| {
+                let (i, oo) = T::from_no_delimiter_bytes(&$b[o..]);
+                o += oo;
+                i
+            })
+            .collect();
+        (ret, o)
+    }};
+}
+
+impl<T: ToNoDelimiter> ToNoDelimiter for Vec<T> {
+    fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
+        inner_to_no_delimiter_iter!(self, out);
+    }
+}
+
+impl<T: FromNoDelimiter> FromNoDelimiter for Vec<T> {
+    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
+        inner_from_no_delimiter_iter!(b)
+    }
+}
+
+impl<T: ToNoDelimiter + Eq + Hash, S: BuildHasher + Default> ToNoDelimiter for HashSet<T, S> {
+    fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
+        inner_to_no_delimiter_iter!(self, out);
+    }
+}
+
+impl<T: FromNoDelimiter + Eq + Hash, S: BuildHasher + Default> FromNoDelimiter for HashSet<T, S> {
+    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
+        inner_from_no_delimiter_iter!(b)
+    }
+}
+
+impl<T: ToNoDelimiter + Ord> ToNoDelimiter for BTreeSet<T> {
+    fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
+        inner_to_no_delimiter_iter!(self, out);
+    }
+}
+
+impl<T: FromNoDelimiter + Ord> FromNoDelimiter for BTreeSet<T> {
+    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
+        inner_from_no_delimiter_iter!(b)
+    }
+}
+
+impl<T: ToNoDelimiter> ToNoDelimiter for VecDeque<T> {
+    fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
+        inner_to_no_delimiter_iter!(self, out);
+    }
+}
+
+impl<T: FromNoDelimiter> FromNoDelimiter for VecDeque<T> {
+    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
+        inner_from_no_delimiter_iter!(b)
+    }
+}
+
+macro_rules! inner_to_no_delimiter_iter_kv {
+    ($self:ident, $out:ident) => {
+        $self.len().to_no_delimiter_bytes($out);
+        for (k, v) in $self.iter() {
+            k.to_no_delimiter_bytes($out);
+            v.to_no_delimiter_bytes($out);
+        }
+    };
+}
+
+macro_rules! inner_from_no_delimiter_iter_kv {
+    ($b:ident) => {{
+        let (n, mut o) = usize::from_no_delimiter_bytes($b);
+        let ret = (0..n)
+            .map(|_| {
+                let (k, oo) = K::from_no_delimiter_bytes(&$b[o..]);
+                o += oo;
+                let (v, oo) = V::from_no_delimiter_bytes(&$b[o..]);
+                o += oo;
+                (k, v)
+            })
+            .collect();
+        (ret, o)
+    }};
+}
+
+impl<K, V, S> ToNoDelimiter for HashMap<K, V, S>
+where
+    K: ToNoDelimiter + Eq + Hash,
+    V: ToNoDelimiter,
+    S: BuildHasher + Default,
+{
+    fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
+        inner_to_no_delimiter_iter_kv!(self, out);
+    }
+}
+
+impl<K, V, S> FromNoDelimiter for HashMap<K, V, S>
+where
+    K: FromNoDelimiter + Eq + Hash,
+    V: FromNoDelimiter,
+    S: BuildHasher + Default,
+{
+    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
+        inner_from_no_delimiter_iter_kv!(b)
+    }
+}
+
+impl<K: ToNoDelimiter + Ord, V: ToNoDelimiter> ToNoDelimiter for BTreeMap<K, V> {
+    fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
+        inner_to_no_delimiter_iter_kv!(self, out);
+    }
+}
+
+impl<K: FromNoDelimiter + Ord, V: FromNoDelimiter> FromNoDelimiter for BTreeMap<K, V> {
+    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
+        inner_from_no_delimiter_iter_kv!(b)
+    }
+}
