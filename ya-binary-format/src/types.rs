@@ -321,3 +321,88 @@ tuple_impls!(A 0 B 1 C 2 D 3);
 tuple_impls!(A 0 B 1 C 2 D 3 E 4);
 tuple_impls!(A 0 B 1 C 2 D 3 E 4 F 5);
 tuple_impls!(A 0 B 1 C 2 D 3 E 4 F 5 G 6);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fmt::Debug;
+
+    fn encode_decode<'a, T: ToBytes + FromBytes<'a> + Debug + PartialEq>(
+        t: &T,
+        buf: &'a mut Vec<u8>,
+    ) {
+        t.to_bytes(buf);
+        let mut b = Bytes::new(buf.as_slice());
+        let v = T::from_bytes(&mut b);
+        assert_eq!(b.remaining(), 0, "{:?}", v);
+        assert_eq!(t, &v);
+    }
+
+    #[test]
+    fn test_num() {
+        encode_decode(&0_u8, &mut Vec::new());
+        encode_decode(&1_u8, &mut Vec::new());
+        encode_decode(&255_u8, &mut Vec::new());
+        encode_decode(&0_i8, &mut Vec::new());
+        encode_decode(&1_i8, &mut Vec::new());
+        encode_decode(&-2_i8, &mut Vec::new());
+        encode_decode(&127_i8, &mut Vec::new());
+        encode_decode(&-128_i8, &mut Vec::new());
+
+        for i in 0..300_usize {
+            encode_decode(&i, &mut Vec::new());
+        }
+        encode_decode(&((1_usize << 32) - 1), &mut Vec::new());
+        encode_decode(&(1_usize << 32), &mut Vec::new());
+        encode_decode(&((1_usize << 32) + 1), &mut Vec::new());
+
+        encode_decode(&1.0_f32, &mut Vec::new());
+        encode_decode(&-10.0_f32, &mut Vec::new());
+        encode_decode(&12345.678_f32, &mut Vec::new());
+        encode_decode(&1.0_f64, &mut Vec::new());
+        encode_decode(&-10.0_f64, &mut Vec::new());
+        encode_decode(&12345.678_f64, &mut Vec::new());
+    }
+
+    #[test]
+    fn test_collections() {
+        encode_decode(&Vec::<usize>::new(), &mut Vec::new());
+        encode_decode(&vec![1u8, 2, 3], &mut Vec::new());
+
+        encode_decode(&HashSet::<i32>::new(), &mut Vec::new());
+        let s = {
+            let mut s = HashSet::new();
+            s.insert(1);
+            s.insert(2);
+            s
+        };
+        encode_decode(&s, &mut Vec::new());
+
+        encode_decode(&HashMap::<i32, String>::new(), &mut Vec::new());
+        let m = {
+            let mut m = HashMap::new();
+            m.insert(1, String::from("a"));
+            m.insert(2, String::from("b"));
+            m.insert(3, String::from("c"));
+        };
+        encode_decode(&m, &mut Vec::new());
+
+        encode_decode(&BTreeSet::<String>::new(), &mut Vec::new());
+        let s = {
+            let mut s = BTreeSet::new();
+            s.insert(1);
+            s.insert(2);
+            s
+        };
+        encode_decode(&s, &mut Vec::new());
+    }
+
+    #[test]
+    fn test_tuple() {
+        encode_decode(&(), &mut Vec::new());
+        encode_decode(&(1i8,), &mut Vec::new());
+        encode_decode(&(1i8, 10u32), &mut Vec::new());
+        encode_decode(&(1i8, 10u32, 100usize), &mut Vec::new());
+        encode_decode(&(1i8, 10u32, 100usize, -10i128), &mut Vec::new());
+    }
+}
