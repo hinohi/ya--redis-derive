@@ -4,7 +4,7 @@ use syn::{parse_macro_input, Data, DeriveInput, Generics, Ident};
 mod data_struct;
 
 #[proc_macro_derive(Redis)]
-pub fn to_redis_args(tokenstream: TokenStream) -> TokenStream {
+pub fn derive_redis(tokenstream: TokenStream) -> TokenStream {
     let input = parse_macro_input!(tokenstream as DeriveInput);
     let type_ident = input.ident;
     let type_generics = input.generics;

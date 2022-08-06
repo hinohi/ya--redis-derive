@@ -23,14 +23,14 @@ impl DeriveRedis for DataStruct {
                         }
                     }
                     impl #type_generics ::redis::FromRedisValue for #type_ident {
-                        fn from_redis_value(&self, v: &::redis::Value) -> ::redis::RedisResult<Self> {
+                        fn from_redis_value(v: &::redis::Value) -> ::redis::RedisResult<Self> {
                             use ::ya_binary_format::{Bytes, FromBytes};
                             let mut b = match v {
                                 ::redis::Value::Data(v) => Bytes::new(v),
-                                _ => return Err(redis::RedisError::from(
-                                    redis::ErrorKind::TypeError,
-                                    "The data get from redis was not single binary data.",
-                                )),
+                                _ => return Err(::redis::RedisError::from((
+                                    ::redis::ErrorKind::TypeError,
+                                    "the data got from redis was not single binary data",
+                                ))),
                             };
                             Ok(#type_ident {
                                 #(#names: FromBytes::from_bytes(&mut b),)*
@@ -57,14 +57,14 @@ impl DeriveRedis for DataStruct {
                         }
                     }
                     impl #type_generics ::redis::FromRedisValue for #type_ident {
-                        fn from_redis_value(&self, v: &::redis::Value) -> ::redis::RedisResult<Self> {
+                        fn from_redis_value(v: &::redis::Value) -> ::redis::RedisResult<Self> {
                             use ::ya_binary_format::{Bytes, FromBytes};
                             let mut b = match v {
                                 ::redis::Value::Data(v) => Bytes::new(v),
-                                _ => return Err(redis::RedisError::from(
-                                    redis::ErrorKind::TypeError,
-                                    "The data get from redis was not single binary data.",
-                                )),
+                                _ => return Err(::redis::RedisError::from((
+                                    ::redis::ErrorKind::TypeError,
+                                    "the data got from redis was not single binary data",
+                                ))),
                             };
                             let t = FromBytes::from_bytes(&mut b);
                             Ok(#type_ident(#(t.#indices)*))
@@ -80,7 +80,7 @@ impl DeriveRedis for DataStruct {
                     }
                 }
                 impl ::redis::FromRedisValue for #type_ident {
-                    fn from_redis_value(&self, _v: &::redis::Value) -> ::redis::RedisResult<Self> {
+                    fn from_redis_value(_v: &::redis::Value) -> ::redis::RedisResult<Self> {
                         Ok(#type_ident)
                     }
                 }
