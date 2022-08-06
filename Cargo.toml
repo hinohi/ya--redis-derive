@@ -1,4 +1,5 @@
 [workspace]
 members = [
+    "ya-redis-derive",
     "ya-binary-format",
 ]
