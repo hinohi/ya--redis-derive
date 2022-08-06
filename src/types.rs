@@ -32,8 +32,7 @@ macro_rules! impl_no_delimiter_to_num {
         }
 
         impl FromNoDelimiter for $typ {
-            fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
-                let mut b = b;
+            fn from_no_delimiter_bytes(mut b: &[u8]) -> (Self, usize) {
                 (b.$get(), ::std::mem::size_of::<$typ>())
             }
         }
