@@ -10,7 +10,7 @@ use crate::DeriveRedis;
 impl DeriveRedis for DataStruct {
     fn derive_redis(&self, type_ident: Ident, type_generics: Generics) -> proc_macro::TokenStream {
         let (impl_g, ty_g, wc) = split_redis_generics_for_impl(&type_generics);
-        match &self.fields {
+        let mut tt = match &self.fields {
             Fields::Named(field_named) => {
                 let names = field_named
                     .named
@@ -18,32 +18,22 @@ impl DeriveRedis for DataStruct {
                     .map(|f| f.ident.as_ref().unwrap())
                     .collect::<Vec<_>>();
                 quote! {
-                    impl #impl_g ::redis::ToRedisArgs for #type_ident #ty_g #wc {
-                        fn write_redis_args<W : ?Sized + redis::RedisWrite>(&self, out: &mut W) {
-                            use ::ya_binary_format::{ByteWriter, ToBytes};
-                            let mut buf = Vec::new();
-                            #(self.#names.to_bytes(&mut buf);)*
-                            out.write_arg(&buf);
+                    impl #impl_g ::ya_binary_format::ToBytes for #type_ident #ty_g #wc {
+                        fn to_bytes<W: ?Sized + ::ya_binary_format::ByteWriter>(&self, out: &mut W) {
+                            use ya_binary_format::ToBytes;
+                            #(self.#names.to_bytes(out);)*
                         }
                     }
-                    impl #impl_g ::redis::FromRedisValue for #type_ident #ty_g #wc {
-                        fn from_redis_value(v: &::redis::Value) -> ::redis::RedisResult<Self> {
-                            use ::ya_binary_format::{Bytes, FromBytes};
-                            let mut b = match v {
-                                ::redis::Value::Data(v) => Bytes::copy_from_slice(v),
-                                _ => return Err(::redis::RedisError::from((
-                                    ::redis::ErrorKind::TypeError,
-                                    "the data got from redis was not single binary data",
-                                ))),
-                            };
-                            Ok(#type_ident {
-                                #(#names: FromBytes::from_bytes(&mut b),)*
-                            })
+                    impl #impl_g ::ya_binary_format::FromBytes for #type_ident #ty_g #wc {
+                        fn from_bytes(b: &mut ::ya_binary_format::Bytes) -> Self {
+                            use ::ya_binary_format::FromBytes;
+                            #type_ident {
+                                #(#names: FromBytes::from_bytes(b),)*
+                            }
                         }
                     }
                 }
             }
-            .into(),
             Fields::Unnamed(field_unnamed) => {
                 let indices = field_unnamed
                     .unnamed
@@ -56,44 +46,54 @@ impl DeriveRedis for DataStruct {
                     .iter()
                     .map(|_| format_ident!("FromBytes"));
                 quote! {
-                    impl #impl_g ::redis::ToRedisArgs for #type_ident #ty_g #wc {
-                        fn write_redis_args<W : ?Sized + redis::RedisWrite>(&self, out: &mut W) {
-                            use ::ya_binary_format::{ByteWriter, ToBytes};
-                            let mut buf = Vec::new();
-                            #(self.#indices.to_bytes(&mut buf);)*
-                            out.write_arg(&buf);
+                    impl #impl_g ::ya_binary_format::ToBytes for #type_ident #ty_g #wc {
+                        fn to_bytes<W: ?Sized + ::ya_binary_format::ByteWriter>(&self, out: &mut W) {
+                            use ya_binary_format::ToBytes;
+                            #(self.#indices.to_bytes(out);)*
                         }
                     }
-                    impl #impl_g ::redis::FromRedisValue for #type_ident #ty_g #wc {
-                        fn from_redis_value(v: &::redis::Value) -> ::redis::RedisResult<Self> {
-                            use ::ya_binary_format::{Bytes, FromBytes};
-                            let mut b = match v {
-                                ::redis::Value::Data(v) => Bytes::copy_from_slice(v),
-                                _ => return Err(::redis::RedisError::from((
-                                    ::redis::ErrorKind::TypeError,
-                                    "the data got from redis was not single binary data",
-                                ))),
-                            };
-                            Ok(#type_ident(#(#f::from_bytes(&mut b),)*))
+                    impl #impl_g ::ya_binary_format::FromBytes for #type_ident #ty_g #wc {
+                        fn from_bytes(b: &mut ::ya_binary_format::Bytes) -> Self {
+                            use ya_binary_format::FromBytes;
+                            #type_ident(#(#f::from_bytes(b),)*)
                         }
                     }
                 }
             }
-            .into(),
             Fields::Unit => quote! {
-                impl ::redis::ToRedisArgs for #type_ident {
-                    fn write_redis_args<W : ?Sized + redis::RedisWrite>(&self, out: &mut W) {
-                        out.write_arg(b"");
+                impl #impl_g ::ya_binary_format::ToBytes for #type_ident #ty_g #wc {
+                    fn to_bytes<W: ?Sized + ::ya_binary_format::ByteWriter>(&self, _out: &mut W) {}
+                }
+                impl #impl_g ::ya_binary_format::FromBytes for #type_ident #ty_g #wc {
+                    fn from_bytes(b: &mut ::ya_binary_format::Bytes) -> Self {
+                        #type_ident
                     }
                 }
-                impl ::redis::FromRedisValue for #type_ident {
-                    fn from_redis_value(_v: &::redis::Value) -> ::redis::RedisResult<Self> {
-                        Ok(#type_ident)
-                    }
+            },
+        };
+        tt.extend(quote! {
+            impl #impl_g ::redis::ToRedisArgs for #type_ident #ty_g #wc {
+                fn write_redis_args<W : ?Sized + redis::RedisWrite>(&self, out: &mut W) {
+                    use ::ya_binary_format::{ByteWriter, ToBytes};
+                    let mut buf = Vec::new();
+                    self.to_bytes(&mut buf);
+                    out.write_arg(&buf);
                 }
             }
-            .into(),
-        }
+            impl #impl_g ::redis::FromRedisValue for #type_ident #ty_g #wc {
+                fn from_redis_value(v: &::redis::Value) -> ::redis::RedisResult<Self> {
+                    let mut b = match v {
+                        ::redis::Value::Data(v) => ::ya_binary_format::Bytes::copy_from_slice(v),
+                        _ => return Err(::redis::RedisError::from((
+                            ::redis::ErrorKind::TypeError,
+                            "the data got from redis was not single binary data",
+                        ))),
+                    };
+                    Ok(::ya_binary_format::FromBytes::from_bytes(&mut b))
+                }
+            }
+        });
+        tt.into()
     }
 }
 

@@ -62,3 +62,27 @@ fn test_struct_generics() {
     do_test(D { a: 42i32 });
     do_test(E(vec![1, 2, 3]));
 }
+
+#[derive(Debug, Eq, PartialEq, Redis)]
+struct Nest {
+    a: A,
+    b: B,
+    c: C,
+}
+
+#[test]
+fn test_struct_nest() {
+    let n = Nest {
+        a: A {
+            a: 0,
+            b: None,
+            c: vec![10],
+            d: String::from("000"),
+            e: 0,
+            f: (None, true),
+        },
+        b: B(false, vec![1, 1, 2, 3, 5], String::from("999"), 42),
+        c: C,
+    };
+    do_test(n);
+}
