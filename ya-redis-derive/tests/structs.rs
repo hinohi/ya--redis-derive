@@ -2,6 +2,11 @@ use redis::{FromRedisValue, ToRedisArgs, Value};
 use std::fmt::Debug;
 use ya_redis_derive::Redis;
 
+// obstruct trait
+trait ByteWriter {}
+trait ToBytes {}
+trait FromBytes {}
+
 fn do_test<T: FromRedisValue + ToRedisArgs + PartialEq + Debug>(v: T) {
     let mut args = v.to_redis_args();
     assert_eq!(args.len(), 1);

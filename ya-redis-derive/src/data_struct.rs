@@ -55,7 +55,7 @@ impl DeriveRedis for DataStruct {
                     impl #impl_g ::ya_binary_format::FromBytes for #type_ident #ty_g #wc {
                         fn from_bytes(b: &mut ::ya_binary_format::Bytes) -> Self {
                             use ya_binary_format::FromBytes;
-                            #type_ident(#(#f::from_bytes(b),)*)
+                            #type_ident(#(::ya_binary_format::#f::from_bytes(b),)*)
                         }
                     }
                 }
@@ -71,6 +71,8 @@ impl DeriveRedis for DataStruct {
                 }
             },
         };
+        // これって ToBytes → ToRedisArgs のように自動導出でよくないかなと思うけど、
+        // その実装をどこに書けばいいかわからないから一旦このまま。
         tt.extend(quote! {
             impl #impl_g ::redis::ToRedisArgs for #type_ident #ty_g #wc {
                 fn write_redis_args<W : ?Sized + redis::RedisWrite>(&self, out: &mut W) {
