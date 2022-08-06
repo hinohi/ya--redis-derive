@@ -3,9 +3,7 @@ use std::{
     hash::{BuildHasher, Hash},
 };
 
-use bytes::Buf;
-
-use crate::Bytes;
+use bytes::{Buf, Bytes};
 
 pub trait ByteWriter {
     fn write(&mut self, b: &[u8]);
@@ -21,8 +19,8 @@ pub trait ToBytes {
     fn to_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W);
 }
 
-pub trait FromBytes<'a>: Sized {
-    fn from_bytes(b: &mut Bytes<'a>) -> Self;
+pub trait FromBytes: Sized {
+    fn from_bytes(b: &mut Bytes) -> Self;
 }
 
 macro_rules! num_impls {
@@ -33,8 +31,8 @@ macro_rules! num_impls {
             }
         }
 
-        impl<'a> FromBytes<'a> for $typ {
-            fn from_bytes(b: &mut Bytes<'a>) -> Self {
+        impl FromBytes for $typ {
+            fn from_bytes(b: &mut Bytes) -> Self {
                 b.$get()
             }
         }
@@ -68,8 +66,8 @@ impl ToBytes for usize {
     }
 }
 
-impl<'a> FromBytes<'a> for usize {
-    fn from_bytes(b: &mut Bytes<'a>) -> Self {
+impl FromBytes for usize {
+    fn from_bytes(b: &mut Bytes) -> Self {
         match b.get_u8() {
             254 => b.get_u32_le() as usize,
             255 => b.get_u64_le() as usize,
@@ -82,8 +80,8 @@ impl ToBytes for () {
     fn to_bytes<W: ?Sized + ByteWriter>(&self, _out: &mut W) {}
 }
 
-impl<'a> FromBytes<'a> for () {
-    fn from_bytes(_b: &mut Bytes<'a>) -> Self {
+impl FromBytes for () {
+    fn from_bytes(_b: &mut Bytes) -> Self {
         ()
     }
 }
@@ -94,8 +92,8 @@ impl ToBytes for bool {
     }
 }
 
-impl<'a> FromBytes<'a> for bool {
-    fn from_bytes(b: &mut Bytes<'a>) -> Self {
+impl FromBytes for bool {
+    fn from_bytes(b: &mut Bytes) -> Self {
         b.get_u8() == b'1'
     }
 }
@@ -107,8 +105,8 @@ impl ToBytes for String {
     }
 }
 
-impl<'a> FromBytes<'a> for String {
-    fn from_bytes(b: &mut Bytes<'a>) -> Self {
+impl FromBytes for String {
+    fn from_bytes(b: &mut Bytes) -> Self {
         let n = usize::from_bytes(b);
         let s = String::from_utf8(b.chunk()[..n].to_vec()).expect("Fail to parse");
         b.advance(n);
@@ -116,17 +114,17 @@ impl<'a> FromBytes<'a> for String {
     }
 }
 
-impl ToBytes for bytes::Bytes {
+impl ToBytes for Bytes {
     fn to_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
         self.len().to_bytes(out);
         out.write(self.chunk());
     }
 }
 
-impl<'a> FromBytes<'a> for bytes::Bytes {
-    fn from_bytes(b: &mut Bytes<'a>) -> Self {
+impl FromBytes for Bytes {
+    fn from_bytes(b: &mut Bytes) -> Self {
         let n = usize::from_bytes(b);
-        let ret = bytes::Bytes::copy_from_slice(&b.chunk()[..n]);
+        let ret = Bytes::copy_from_slice(&b.chunk()[..n]);
         b.advance(n);
         ret
     }
@@ -144,8 +142,8 @@ impl<T: ToBytes> ToBytes for Option<T> {
     }
 }
 
-impl<'a, T: FromBytes<'a>> FromBytes<'a> for Option<T> {
-    fn from_bytes(b: &mut Bytes<'a>) -> Self {
+impl<T: FromBytes> FromBytes for Option<T> {
+    fn from_bytes(b: &mut Bytes) -> Self {
         if b.get_u8() == b'0' {
             None
         } else {
@@ -160,8 +158,8 @@ impl<T: ToBytes> ToBytes for Box<T> {
     }
 }
 
-impl<'a, T: FromBytes<'a>> FromBytes<'a> for Box<T> {
-    fn from_bytes(b: &mut Bytes<'a>) -> Self {
+impl<T: FromBytes> FromBytes for Box<T> {
+    fn from_bytes(b: &mut Bytes) -> Self {
         Box::new(T::from_bytes(b))
     }
 }
@@ -189,8 +187,8 @@ impl<T: ToBytes> ToBytes for Vec<T> {
     }
 }
 
-impl<'a, T: FromBytes<'a>> FromBytes<'a> for Vec<T> {
-    fn from_bytes(b: &mut Bytes<'a>) -> Self {
+impl<T: FromBytes> FromBytes for Vec<T> {
+    fn from_bytes(b: &mut Bytes) -> Self {
         iter_from_impl!(b)
     }
 }
@@ -201,12 +199,12 @@ impl<T: ToBytes, S> ToBytes for HashSet<T, S> {
     }
 }
 
-impl<'a, T, S> FromBytes<'a> for HashSet<T, S>
+impl<T, S> FromBytes for HashSet<T, S>
 where
-    T: FromBytes<'a> + Eq + Hash,
+    T: FromBytes + Eq + Hash,
     S: BuildHasher + Default,
 {
-    fn from_bytes(b: &mut Bytes<'a>) -> Self {
+    fn from_bytes(b: &mut Bytes) -> Self {
         iter_from_impl!(b)
     }
 }
@@ -217,8 +215,8 @@ impl<T: ToBytes> ToBytes for BTreeSet<T> {
     }
 }
 
-impl<'a, T: FromBytes<'a> + Ord> FromBytes<'a> for BTreeSet<T> {
-    fn from_bytes(b: &mut Bytes<'a>) -> Self {
+impl<T: FromBytes + Ord> FromBytes for BTreeSet<T> {
+    fn from_bytes(b: &mut Bytes) -> Self {
         iter_from_impl!(b)
     }
 }
@@ -229,8 +227,8 @@ impl<T: ToBytes> ToBytes for VecDeque<T> {
     }
 }
 
-impl<'a, T: FromBytes<'a>> FromBytes<'a> for VecDeque<T> {
-    fn from_bytes(b: &mut Bytes<'a>) -> Self {
+impl<T: FromBytes> FromBytes for VecDeque<T> {
+    fn from_bytes(b: &mut Bytes) -> Self {
         iter_from_impl!(b)
     }
 }
@@ -241,8 +239,8 @@ impl<T: ToBytes> ToBytes for BinaryHeap<T> {
     }
 }
 
-impl<'a, T: FromBytes<'a> + Ord> FromBytes<'a> for BinaryHeap<T> {
-    fn from_bytes(b: &mut Bytes<'a>) -> Self {
+impl<T: FromBytes + Ord> FromBytes for BinaryHeap<T> {
+    fn from_bytes(b: &mut Bytes) -> Self {
         iter_from_impl!(b)
     }
 }
@@ -271,13 +269,13 @@ impl<K: ToBytes, V: ToBytes, S> ToBytes for HashMap<K, V, S> {
     }
 }
 
-impl<'a, K, V, S> FromBytes<'a> for HashMap<K, V, S>
+impl<K, V, S> FromBytes for HashMap<K, V, S>
 where
-    K: FromBytes<'a> + Eq + Hash,
-    V: FromBytes<'a>,
+    K: FromBytes + Eq + Hash,
+    V: FromBytes,
     S: BuildHasher + Default,
 {
-    fn from_bytes(b: &mut Bytes<'a>) -> Self {
+    fn from_bytes(b: &mut Bytes) -> Self {
         kv_from_impl!(b)
     }
 }
@@ -288,12 +286,12 @@ impl<K: ToBytes, V: ToBytes> ToBytes for BTreeMap<K, V> {
     }
 }
 
-impl<'a, K, V> FromBytes<'a> for BTreeMap<K, V>
+impl<K, V> FromBytes for BTreeMap<K, V>
 where
-    K: FromBytes<'a> + Ord,
-    V: FromBytes<'a>,
+    K: FromBytes + Ord,
+    V: FromBytes,
 {
-    fn from_bytes(b: &mut Bytes<'a>) -> Self {
+    fn from_bytes(b: &mut Bytes) -> Self {
         kv_from_impl!(b)
     }
 }
@@ -306,8 +304,8 @@ macro_rules! tuple_impls {
             }
         }
 
-        impl<'a, $($T: FromBytes<'a>,)+> FromBytes<'a> for ($($T,)+) {
-            fn from_bytes(b: &mut Bytes<'a>) -> Self {
+        impl< $($T: FromBytes,)+> FromBytes for ($($T,)+) {
+            fn from_bytes(b: &mut Bytes) -> Self {
                 ($($T::from_bytes(b),)+)
             }
         }
@@ -327,12 +325,10 @@ mod tests {
     use super::*;
     use std::fmt::Debug;
 
-    fn encode_decode<'a, T: ToBytes + FromBytes<'a> + Debug + PartialEq>(
-        t: &T,
-        buf: &'a mut Vec<u8>,
-    ) {
-        t.to_bytes(buf);
-        let mut b = Bytes::new(buf.as_slice());
+    fn encode_decode<T: ToBytes + FromBytes + Debug + PartialEq>(t: &T) {
+        let mut b = Vec::new();
+        t.to_bytes(&mut b);
+        let mut b = Bytes::from(b);
         let v = T::from_bytes(&mut b);
         assert_eq!(b.remaining(), 0, "{:?}", v);
         assert_eq!(t, &v);
@@ -340,69 +336,69 @@ mod tests {
 
     #[test]
     fn test_num() {
-        encode_decode(&0_u8, &mut Vec::new());
-        encode_decode(&1_u8, &mut Vec::new());
-        encode_decode(&255_u8, &mut Vec::new());
-        encode_decode(&0_i8, &mut Vec::new());
-        encode_decode(&1_i8, &mut Vec::new());
-        encode_decode(&-2_i8, &mut Vec::new());
-        encode_decode(&127_i8, &mut Vec::new());
-        encode_decode(&-128_i8, &mut Vec::new());
+        encode_decode(&0_u8);
+        encode_decode(&1_u8);
+        encode_decode(&255_u8);
+        encode_decode(&0_i8);
+        encode_decode(&1_i8);
+        encode_decode(&-2_i8);
+        encode_decode(&127_i8);
+        encode_decode(&-128_i8);
 
         for i in 0..300_usize {
-            encode_decode(&i, &mut Vec::new());
+            encode_decode(&i);
         }
-        encode_decode(&((1_usize << 32) - 1), &mut Vec::new());
-        encode_decode(&(1_usize << 32), &mut Vec::new());
-        encode_decode(&((1_usize << 32) + 1), &mut Vec::new());
+        encode_decode(&((1_usize << 32) - 1));
+        encode_decode(&(1_usize << 32));
+        encode_decode(&((1_usize << 32) + 1));
 
-        encode_decode(&1.0_f32, &mut Vec::new());
-        encode_decode(&-10.0_f32, &mut Vec::new());
-        encode_decode(&12345.678_f32, &mut Vec::new());
-        encode_decode(&1.0_f64, &mut Vec::new());
-        encode_decode(&-10.0_f64, &mut Vec::new());
-        encode_decode(&12345.678_f64, &mut Vec::new());
+        encode_decode(&1.0_f32);
+        encode_decode(&-10.0_f32);
+        encode_decode(&12345.678_f32);
+        encode_decode(&1.0_f64);
+        encode_decode(&-10.0_f64);
+        encode_decode(&12345.678_f64);
     }
 
     #[test]
     fn test_collections() {
-        encode_decode(&Vec::<usize>::new(), &mut Vec::new());
-        encode_decode(&vec![1u8, 2, 3], &mut Vec::new());
+        encode_decode(&Vec::<usize>::new());
+        encode_decode(&vec![1u8, 2, 3]);
 
-        encode_decode(&HashSet::<i32>::new(), &mut Vec::new());
+        encode_decode(&HashSet::<i32>::new());
         let s = {
             let mut s = HashSet::new();
             s.insert(1);
             s.insert(2);
             s
         };
-        encode_decode(&s, &mut Vec::new());
+        encode_decode(&s);
 
-        encode_decode(&HashMap::<i32, String>::new(), &mut Vec::new());
+        encode_decode(&HashMap::<i32, String>::new());
         let m = {
             let mut m = HashMap::new();
             m.insert(1, String::from("a"));
             m.insert(2, String::from("b"));
             m.insert(3, String::from("c"));
         };
-        encode_decode(&m, &mut Vec::new());
+        encode_decode(&m);
 
-        encode_decode(&BTreeSet::<String>::new(), &mut Vec::new());
+        encode_decode(&BTreeSet::<String>::new());
         let s = {
             let mut s = BTreeSet::new();
             s.insert(1);
             s.insert(2);
             s
         };
-        encode_decode(&s, &mut Vec::new());
+        encode_decode(&s);
     }
 
     #[test]
     fn test_tuple() {
-        encode_decode(&(), &mut Vec::new());
-        encode_decode(&(1i8,), &mut Vec::new());
-        encode_decode(&(1i8, 10u32), &mut Vec::new());
-        encode_decode(&(1i8, 10u32, 100usize), &mut Vec::new());
-        encode_decode(&(1i8, 10u32, 100usize, -10i128), &mut Vec::new());
+        encode_decode(&());
+        encode_decode(&(1i8,));
+        encode_decode(&(1i8, 10u32));
+        encode_decode(&(1i8, 10u32, 100usize));
+        encode_decode(&(1i8, 10u32, 100usize, -10i128));
     }
 }

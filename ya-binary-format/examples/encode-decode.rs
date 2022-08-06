@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use bytes::Buf;
-use ya_binary_format::{ByteWriter, Bytes, FromBytes, ToBytes};
+use ya_binary_format::{Buf, ByteWriter, Bytes, FromBytes, ToBytes};
 
 #[derive(Debug, Eq, PartialEq)]
 struct MyStruct {
@@ -26,8 +25,8 @@ impl ToBytes for MyStruct {
     }
 }
 
-impl<'a> FromBytes<'a> for MyStruct {
-    fn from_bytes(b: &mut Bytes<'a>) -> Self {
+impl FromBytes for MyStruct {
+    fn from_bytes(b: &mut Bytes) -> Self {
         let a = FromBytes::from_bytes(b);
         let v = FromBytes::from_bytes(b);
         let o1 = FromBytes::from_bytes(b);
@@ -70,7 +69,7 @@ fn main() {
     println!("{:?}", buf);
     println!("{}", buf.len());
 
-    let mut b = Bytes::new(&buf);
+    let mut b = Bytes::from(buf);
     let v = MyStruct::from_bytes(&mut b);
     assert_eq!(a, v);
     assert_eq!(b.remaining(), 0);
