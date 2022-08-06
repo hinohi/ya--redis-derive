@@ -3,7 +3,9 @@ use std::{
     hash::{BuildHasher, Hash},
 };
 
-use bytes::{Buf, Bytes};
+use bytes::Buf;
+
+use crate::Bytes;
 
 pub trait ByteWriter {
     fn write(&mut self, b: &[u8]);
@@ -19,11 +21,11 @@ pub trait ToNoDelimiter {
     fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W);
 }
 
-pub trait FromNoDelimiter: Sized {
-    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize);
+pub trait FromNoDelimiter<'a>: Sized {
+    fn from_no_delimiter_bytes(b: &mut Bytes<'a>) -> Self;
 }
 
-macro_rules! impl_no_delimiter_to_num {
+macro_rules! num_impls {
     ($typ:ty, $get:ident) => {
         impl ToNoDelimiter for $typ {
             fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
@@ -31,26 +33,26 @@ macro_rules! impl_no_delimiter_to_num {
             }
         }
 
-        impl FromNoDelimiter for $typ {
-            fn from_no_delimiter_bytes(mut b: &[u8]) -> (Self, usize) {
-                (b.$get(), ::std::mem::size_of::<$typ>())
+        impl<'a> FromNoDelimiter<'a> for $typ {
+            fn from_no_delimiter_bytes(b: &mut Bytes<'a>) -> Self {
+                b.$get()
             }
         }
     };
 }
 
-impl_no_delimiter_to_num!(i8, get_i8);
-impl_no_delimiter_to_num!(u8, get_u8);
-impl_no_delimiter_to_num!(i16, get_i16_le);
-impl_no_delimiter_to_num!(u16, get_u16_le);
-impl_no_delimiter_to_num!(i32, get_i32_le);
-impl_no_delimiter_to_num!(u32, get_u32_le);
-impl_no_delimiter_to_num!(i64, get_i64_le);
-impl_no_delimiter_to_num!(u64, get_u64_le);
-impl_no_delimiter_to_num!(i128, get_i128_le);
-impl_no_delimiter_to_num!(u128, get_u128_le);
-impl_no_delimiter_to_num!(f32, get_f32_le);
-impl_no_delimiter_to_num!(f64, get_f64_le);
+num_impls!(i8, get_i8);
+num_impls!(u8, get_u8);
+num_impls!(i16, get_i16_le);
+num_impls!(u16, get_u16_le);
+num_impls!(i32, get_i32_le);
+num_impls!(u32, get_u32_le);
+num_impls!(i64, get_i64_le);
+num_impls!(u64, get_u64_le);
+num_impls!(i128, get_i128_le);
+num_impls!(u128, get_u128_le);
+num_impls!(f32, get_f32_le);
+num_impls!(f64, get_f64_le);
 
 impl ToNoDelimiter for usize {
     fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
@@ -66,18 +68,12 @@ impl ToNoDelimiter for usize {
     }
 }
 
-impl FromNoDelimiter for usize {
-    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
-        match b[0] {
-            254 => {
-                let mut b = &b[1..];
-                (b.get_u32_le() as usize, 5)
-            }
-            255 => {
-                let mut b = &b[1..];
-                (b.get_u64_le() as usize, 9)
-            }
-            v => (v as usize, 1),
+impl<'a> FromNoDelimiter<'a> for usize {
+    fn from_no_delimiter_bytes(b: &mut Bytes<'a>) -> Self {
+        match b.get_u8() {
+            254 => b.get_u32_le() as usize,
+            255 => b.get_u64_le() as usize,
+            v => v as usize,
         }
     }
 }
@@ -86,9 +82,9 @@ impl ToNoDelimiter for () {
     fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, _out: &mut W) {}
 }
 
-impl FromNoDelimiter for () {
-    fn from_no_delimiter_bytes(_b: &[u8]) -> (Self, usize) {
-        ((), 0)
+impl<'a> FromNoDelimiter<'a> for () {
+    fn from_no_delimiter_bytes(_b: &mut Bytes<'a>) -> Self {
+        ()
     }
 }
 
@@ -98,9 +94,9 @@ impl ToNoDelimiter for bool {
     }
 }
 
-impl FromNoDelimiter for bool {
-    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
-        (b[0] == b'1', 1)
+impl<'a> FromNoDelimiter<'a> for bool {
+    fn from_no_delimiter_bytes(b: &mut Bytes<'a>) -> Self {
+        b.get_u8() == b'1'
     }
 }
 
@@ -111,25 +107,28 @@ impl ToNoDelimiter for String {
     }
 }
 
-impl FromNoDelimiter for String {
-    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
-        let (n, o) = usize::from_no_delimiter_bytes(b);
-        let v = b[o..o + n].to_vec();
-        (String::from_utf8(v).expect("Fail to parse"), o + n)
+impl<'a> FromNoDelimiter<'a> for String {
+    fn from_no_delimiter_bytes(b: &mut Bytes<'a>) -> Self {
+        let n = usize::from_no_delimiter_bytes(b);
+        let s = String::from_utf8(b.chunk()[..n].to_vec()).expect("Fail to parse");
+        b.advance(n);
+        s
     }
 }
 
-impl ToNoDelimiter for Bytes {
+impl ToNoDelimiter for bytes::Bytes {
     fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
         self.len().to_no_delimiter_bytes(out);
         out.write(self.chunk());
     }
 }
 
-impl FromNoDelimiter for Bytes {
-    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
-        let (n, o) = usize::from_no_delimiter_bytes(b);
-        (Bytes::copy_from_slice(&b[o..o + n]), o + n)
+impl<'a> FromNoDelimiter<'a> for bytes::Bytes {
+    fn from_no_delimiter_bytes(b: &mut Bytes<'a>) -> Self {
+        let n = usize::from_no_delimiter_bytes(b);
+        let ret = bytes::Bytes::copy_from_slice(&b.chunk()[..n]);
+        b.advance(n);
+        ret
     }
 }
 
@@ -145,13 +144,12 @@ impl<T: ToNoDelimiter> ToNoDelimiter for Option<T> {
     }
 }
 
-impl<T: FromNoDelimiter> FromNoDelimiter for Option<T> {
-    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
-        if b[0] == b'0' {
-            (None, 1)
+impl<'a, T: FromNoDelimiter<'a>> FromNoDelimiter<'a> for Option<T> {
+    fn from_no_delimiter_bytes(b: &mut Bytes<'a>) -> Self {
+        if b.get_u8() == b'0' {
+            None
         } else {
-            let (v, o) = T::from_no_delimiter_bytes(&b[1..]);
-            (Some(v), o + 1)
+            Some(T::from_no_delimiter_bytes(b))
         }
     }
 }
@@ -162,14 +160,13 @@ impl<T: ToNoDelimiter> ToNoDelimiter for Box<T> {
     }
 }
 
-impl<T: FromNoDelimiter> FromNoDelimiter for Box<T> {
-    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
-        let (v, o) = T::from_no_delimiter_bytes(b);
-        (Box::new(v), o)
+impl<'a, T: FromNoDelimiter<'a>> FromNoDelimiter<'a> for Box<T> {
+    fn from_no_delimiter_bytes(b: &mut Bytes<'a>) -> Self {
+        Box::new(T::from_no_delimiter_bytes(b))
     }
 }
 
-macro_rules! inner_to_no_delimiter_iter {
+macro_rules! iter_to_impl {
     ($self:ident, $out:ident) => {
         $self.len().to_no_delimiter_bytes($out);
         for i in $self.iter() {
@@ -178,81 +175,79 @@ macro_rules! inner_to_no_delimiter_iter {
     };
 }
 
-macro_rules! inner_from_no_delimiter_iter {
-    ($b:ident) => {{
-        let (n, mut o) = usize::from_no_delimiter_bytes($b);
-        let ret = (0..n)
-            .map(|_| {
-                let (i, oo) = T::from_no_delimiter_bytes(&$b[o..]);
-                o += oo;
-                i
-            })
-            .collect();
-        (ret, o)
-    }};
+macro_rules! iter_from_impl {
+    ($b:ident) => {
+        (0..usize::from_no_delimiter_bytes($b))
+            .map(|_| T::from_no_delimiter_bytes($b))
+            .collect()
+    };
 }
 
 impl<T: ToNoDelimiter> ToNoDelimiter for Vec<T> {
     fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
-        inner_to_no_delimiter_iter!(self, out);
+        iter_to_impl!(self, out);
     }
 }
 
-impl<T: FromNoDelimiter> FromNoDelimiter for Vec<T> {
-    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
-        inner_from_no_delimiter_iter!(b)
+impl<'a, T: FromNoDelimiter<'a>> FromNoDelimiter<'a> for Vec<T> {
+    fn from_no_delimiter_bytes(b: &mut Bytes<'a>) -> Self {
+        iter_from_impl!(b)
     }
 }
 
 impl<T: ToNoDelimiter, S> ToNoDelimiter for HashSet<T, S> {
     fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
-        inner_to_no_delimiter_iter!(self, out);
+        iter_to_impl!(self, out);
     }
 }
 
-impl<T: FromNoDelimiter + Eq + Hash, S: BuildHasher + Default> FromNoDelimiter for HashSet<T, S> {
-    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
-        inner_from_no_delimiter_iter!(b)
+impl<'a, T, S> FromNoDelimiter<'a> for HashSet<T, S>
+where
+    T: FromNoDelimiter<'a> + Eq + Hash,
+    S: BuildHasher + Default,
+{
+    fn from_no_delimiter_bytes(b: &mut Bytes<'a>) -> Self {
+        iter_from_impl!(b)
     }
 }
 
 impl<T: ToNoDelimiter> ToNoDelimiter for BTreeSet<T> {
     fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
-        inner_to_no_delimiter_iter!(self, out);
+        iter_to_impl!(self, out);
     }
 }
 
-impl<T: FromNoDelimiter + Ord> FromNoDelimiter for BTreeSet<T> {
-    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
-        inner_from_no_delimiter_iter!(b)
+impl<'a, T: FromNoDelimiter<'a> + Ord> FromNoDelimiter<'a> for BTreeSet<T> {
+    fn from_no_delimiter_bytes(b: &mut Bytes<'a>) -> Self {
+        iter_from_impl!(b)
     }
 }
 
 impl<T: ToNoDelimiter> ToNoDelimiter for VecDeque<T> {
     fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
-        inner_to_no_delimiter_iter!(self, out);
+        iter_to_impl!(self, out);
     }
 }
 
-impl<T: FromNoDelimiter> FromNoDelimiter for VecDeque<T> {
-    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
-        inner_from_no_delimiter_iter!(b)
+impl<'a, T: FromNoDelimiter<'a>> FromNoDelimiter<'a> for VecDeque<T> {
+    fn from_no_delimiter_bytes(b: &mut Bytes<'a>) -> Self {
+        iter_from_impl!(b)
     }
 }
 
 impl<T: ToNoDelimiter> ToNoDelimiter for BinaryHeap<T> {
     fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
-        inner_to_no_delimiter_iter!(self, out);
+        iter_to_impl!(self, out);
     }
 }
 
-impl<T: FromNoDelimiter + Ord> FromNoDelimiter for BinaryHeap<T> {
-    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
-        inner_from_no_delimiter_iter!(b)
+impl<'a, T: FromNoDelimiter<'a> + Ord> FromNoDelimiter<'a> for BinaryHeap<T> {
+    fn from_no_delimiter_bytes(b: &mut Bytes<'a>) -> Self {
+        iter_from_impl!(b)
     }
 }
 
-macro_rules! inner_to_no_delimiter_iter_kv {
+macro_rules! kv_to_impl {
     ($self:ident, $out:ident) => {
         $self.len().to_no_delimiter_bytes($out);
         for (k, v) in $self.iter() {
@@ -262,47 +257,82 @@ macro_rules! inner_to_no_delimiter_iter_kv {
     };
 }
 
-macro_rules! inner_from_no_delimiter_iter_kv {
-    ($b:ident) => {{
-        let (n, mut o) = usize::from_no_delimiter_bytes($b);
-        let ret = (0..n)
+macro_rules! kv_from_impl {
+    ($b:ident) => {
+        (0..usize::from_no_delimiter_bytes($b))
             .map(|_| {
-                let (k, oo) = K::from_no_delimiter_bytes(&$b[o..]);
-                o += oo;
-                let (v, oo) = V::from_no_delimiter_bytes(&$b[o..]);
-                o += oo;
-                (k, v)
+                (
+                    K::from_no_delimiter_bytes($b),
+                    V::from_no_delimiter_bytes($b),
+                )
             })
-            .collect();
-        (ret, o)
-    }};
+            .collect()
+    };
 }
 
 impl<K: ToNoDelimiter, V: ToNoDelimiter, S> ToNoDelimiter for HashMap<K, V, S> {
     fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
-        inner_to_no_delimiter_iter_kv!(self, out);
+        kv_to_impl!(self, out);
     }
 }
 
-impl<K, V, S> FromNoDelimiter for HashMap<K, V, S>
+impl<'a, K, V, S> FromNoDelimiter<'a> for HashMap<K, V, S>
 where
-    K: FromNoDelimiter + Eq + Hash,
-    V: FromNoDelimiter,
+    K: FromNoDelimiter<'a> + Eq + Hash,
+    V: FromNoDelimiter<'a>,
     S: BuildHasher + Default,
 {
-    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
-        inner_from_no_delimiter_iter_kv!(b)
+    fn from_no_delimiter_bytes(b: &mut Bytes<'a>) -> Self {
+        kv_from_impl!(b)
     }
 }
 
 impl<K: ToNoDelimiter, V: ToNoDelimiter> ToNoDelimiter for BTreeMap<K, V> {
     fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
-        inner_to_no_delimiter_iter_kv!(self, out);
+        kv_to_impl!(self, out);
     }
 }
 
-impl<K: FromNoDelimiter + Ord, V: FromNoDelimiter> FromNoDelimiter for BTreeMap<K, V> {
-    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
-        inner_from_no_delimiter_iter_kv!(b)
+impl<'a, K, V> FromNoDelimiter<'a> for BTreeMap<K, V>
+where
+    K: FromNoDelimiter<'a> + Ord,
+    V: FromNoDelimiter<'a>,
+{
+    fn from_no_delimiter_bytes(b: &mut Bytes<'a>) -> Self {
+        kv_from_impl!(b)
     }
 }
+
+macro_rules! tuple_impls {
+    (($T:ident, $i:tt),) => {
+        tuple_impls!(@impl ($T, $i),);
+    };
+    (($T:ident, $i:tt), $( ($U:ident, $j:tt) ,)+) => {
+        tuple_impls!($( ($U, $j), )+);
+        tuple_impls!(@impl ($T, $i), $( ($U, $j), )+);
+    };
+    (@impl $( ($T:ident, $i:tt), )+) => {
+        impl<$($T: ToNoDelimiter,)+> ToNoDelimiter for ($($T,)+) {
+            fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
+                $(self.$i.to_no_delimiter_bytes(out);)+
+            }
+        }
+
+        impl<'a, $($T: FromNoDelimiter<'a>,)+> FromNoDelimiter<'a> for ($($T,)+) {
+            fn from_no_delimiter_bytes(b: &mut Bytes<'a>) -> Self {
+                ($($T::from_no_delimiter_bytes(b),)+)
+            }
+        }
+    };
+}
+
+tuple_impls!(
+    (H, 7),
+    (G, 6),
+    (F, 5),
+    (E, 4),
+    (D, 3),
+    (C, 2),
+    (B, 1),
+    (A, 0),
+);

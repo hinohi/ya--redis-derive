@@ -3,7 +3,7 @@ use redis::{
     Value,
 };
 
-use ya_redis_derive::{FromNoDelimiter, ToNoDelimiter};
+use ya_redis_derive::{Bytes, FromNoDelimiter, ToNoDelimiter};
 
 #[derive(Debug, Eq, PartialEq)]
 struct MyStruct {
@@ -33,16 +33,12 @@ impl FromRedisValue for MyStruct {
     fn from_redis_value(v: &Value) -> RedisResult<Self> {
         match v {
             Value::Data(b) => {
-                let mut o = 0;
-                let (a, offset) = FromNoDelimiter::from_no_delimiter_bytes(b);
-                o += offset;
-                let (v, offset) = FromNoDelimiter::from_no_delimiter_bytes(&b[o..]);
-                o += offset;
-                let (o1, offset) = FromNoDelimiter::from_no_delimiter_bytes(&b[o..]);
-                o += offset;
-                let (o2, offset) = FromNoDelimiter::from_no_delimiter_bytes(&b[o..]);
-                o += offset;
-                let (s, _) = FromNoDelimiter::from_no_delimiter_bytes(&b[o..]);
+                let mut b = Bytes::new(b.as_slice());
+                let a = FromNoDelimiter::from_no_delimiter_bytes(&mut b);
+                let v = FromNoDelimiter::from_no_delimiter_bytes(&mut b);
+                let o1 = FromNoDelimiter::from_no_delimiter_bytes(&mut b);
+                let o2 = FromNoDelimiter::from_no_delimiter_bytes(&mut b);
+                let s = FromNoDelimiter::from_no_delimiter_bytes(&mut b);
                 Ok(MyStruct { a, v, o1, o2, s })
             }
             _ => Err(RedisError::from((
