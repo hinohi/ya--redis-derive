@@ -6,6 +6,7 @@ use crate::DeriveRedis;
 
 impl DeriveRedis for DataStruct {
     fn derive_redis(&self, type_ident: Ident, type_generics: Generics) -> TokenStream {
+        let (impl_g, ty_g, wc) = type_generics.split_for_impl();
         match &self.fields {
             Fields::Named(field_named) => {
                 let names = field_named
@@ -14,7 +15,7 @@ impl DeriveRedis for DataStruct {
                     .map(|f| f.ident.as_ref().unwrap())
                     .collect::<Vec<_>>();
                 quote! {
-                    impl #type_generics ::redis::ToRedisArgs for #type_ident {
+                    impl #impl_g ::redis::ToRedisArgs for #type_ident #ty_g #wc {
                         fn write_redis_args<W : ?Sized + redis::RedisWrite>(&self, out: &mut W) {
                             use ::ya_binary_format::{ByteWriter, ToBytes};
                             let mut buf = Vec::new();
@@ -22,11 +23,11 @@ impl DeriveRedis for DataStruct {
                             out.write_arg(&buf);
                         }
                     }
-                    impl #type_generics ::redis::FromRedisValue for #type_ident {
+                    impl #impl_g ::redis::FromRedisValue for #type_ident #ty_g #wc {
                         fn from_redis_value(v: &::redis::Value) -> ::redis::RedisResult<Self> {
                             use ::ya_binary_format::{Bytes, FromBytes};
                             let mut b = match v {
-                                ::redis::Value::Data(v) => Bytes::new(v),
+                                ::redis::Value::Data(v) => Bytes::copy_from_slice(v),
                                 _ => return Err(::redis::RedisError::from((
                                     ::redis::ErrorKind::TypeError,
                                     "the data got from redis was not single binary data",
@@ -64,7 +65,7 @@ impl DeriveRedis for DataStruct {
                         fn from_redis_value(v: &::redis::Value) -> ::redis::RedisResult<Self> {
                             use ::ya_binary_format::{Bytes, FromBytes};
                             let mut b = match v {
-                                ::redis::Value::Data(v) => Bytes::new(v),
+                                ::redis::Value::Data(v) => Bytes::copy_from_slice(v),
                                 _ => return Err(::redis::RedisError::from((
                                     ::redis::ErrorKind::TypeError,
                                     "the data got from redis was not single binary data",
