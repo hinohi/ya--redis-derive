@@ -156,6 +156,19 @@ impl<T: FromNoDelimiter> FromNoDelimiter for Option<T> {
     }
 }
 
+impl<T: ToNoDelimiter> ToNoDelimiter for Box<T> {
+    fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
+        self.as_ref().to_no_delimiter_bytes(out)
+    }
+}
+
+impl<T: FromNoDelimiter> FromNoDelimiter for Box<T> {
+    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
+        let (v, o) = T::from_no_delimiter_bytes(b);
+        (Box::new(v), o)
+    }
+}
+
 macro_rules! inner_to_no_delimiter_iter {
     ($self:ident, $out:ident) => {
         $self.len().to_no_delimiter_bytes($out);
