@@ -1,5 +1,5 @@
 use proc_macro::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{DataStruct, Fields, Generics, Ident, Index};
 
 use crate::DeriveRedis;
@@ -47,12 +47,16 @@ impl DeriveRedis for DataStruct {
                     .enumerate()
                     .map(|(i, _)| Index::from(i))
                     .collect::<Vec<_>>();
+                let f = field_unnamed
+                    .unnamed
+                    .iter()
+                    .map(|_| format_ident!("FromBytes"));
                 quote! {
                     impl #type_generics ::redis::ToRedisArgs for #type_ident {
                         fn write_redis_args<W : ?Sized + redis::RedisWrite>(&self, out: &mut W) {
                             use ::ya_binary_format::{ByteWriter, ToBytes};
                             let mut buf = Vec::new();
-                            #(self.#indices.to_bytes(&mut buf))*
+                            #(self.#indices.to_bytes(&mut buf);)*
                             out.write_arg(&buf);
                         }
                     }
@@ -66,8 +70,7 @@ impl DeriveRedis for DataStruct {
                                     "the data got from redis was not single binary data",
                                 ))),
                             };
-                            let t = FromBytes::from_bytes(&mut b);
-                            Ok(#type_ident(#(t.#indices)*))
+                            Ok(#type_ident(#(#f::from_bytes(&mut b),)*))
                         }
                     }
                 }
