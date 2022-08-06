@@ -3,7 +3,7 @@ use std::{
     hash::{BuildHasher, Hash},
 };
 
-use bytes::Buf;
+use bytes::{Buf, Bytes};
 
 pub trait ByteWriter {
     fn write(&mut self, b: &[u8]);
@@ -116,6 +116,20 @@ impl FromNoDelimiter for String {
         let (n, o) = usize::from_no_delimiter_bytes(b);
         let v = b[o..o + n].to_vec();
         (String::from_utf8(v).expect("Fail to parse"), o + n)
+    }
+}
+
+impl ToNoDelimiter for Bytes {
+    fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
+        self.len().to_no_delimiter_bytes(out);
+        out.write(self.chunk());
+    }
+}
+
+impl FromNoDelimiter for Bytes {
+    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
+        let (n, o) = usize::from_no_delimiter_bytes(b);
+        (Bytes::copy_from_slice(&b[o..o + n]), o + n)
     }
 }
 
