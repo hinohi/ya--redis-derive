@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, VecDeque},
     hash::{BuildHasher, Hash},
 };
 
@@ -178,7 +178,7 @@ impl<T: FromNoDelimiter> FromNoDelimiter for Vec<T> {
     }
 }
 
-impl<T: ToNoDelimiter + Eq + Hash, S: BuildHasher + Default> ToNoDelimiter for HashSet<T, S> {
+impl<T: ToNoDelimiter, S> ToNoDelimiter for HashSet<T, S> {
     fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
         inner_to_no_delimiter_iter!(self, out);
     }
@@ -190,7 +190,7 @@ impl<T: FromNoDelimiter + Eq + Hash, S: BuildHasher + Default> FromNoDelimiter f
     }
 }
 
-impl<T: ToNoDelimiter + Ord> ToNoDelimiter for BTreeSet<T> {
+impl<T: ToNoDelimiter> ToNoDelimiter for BTreeSet<T> {
     fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
         inner_to_no_delimiter_iter!(self, out);
     }
@@ -209,6 +209,18 @@ impl<T: ToNoDelimiter> ToNoDelimiter for VecDeque<T> {
 }
 
 impl<T: FromNoDelimiter> FromNoDelimiter for VecDeque<T> {
+    fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
+        inner_from_no_delimiter_iter!(b)
+    }
+}
+
+impl<T: ToNoDelimiter> ToNoDelimiter for BinaryHeap<T> {
+    fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
+        inner_to_no_delimiter_iter!(self, out);
+    }
+}
+
+impl<T: FromNoDelimiter + Ord> FromNoDelimiter for BinaryHeap<T> {
     fn from_no_delimiter_bytes(b: &[u8]) -> (Self, usize) {
         inner_from_no_delimiter_iter!(b)
     }
@@ -240,12 +252,7 @@ macro_rules! inner_from_no_delimiter_iter_kv {
     }};
 }
 
-impl<K, V, S> ToNoDelimiter for HashMap<K, V, S>
-where
-    K: ToNoDelimiter + Eq + Hash,
-    V: ToNoDelimiter,
-    S: BuildHasher + Default,
-{
+impl<K: ToNoDelimiter, V: ToNoDelimiter, S> ToNoDelimiter for HashMap<K, V, S> {
     fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
         inner_to_no_delimiter_iter_kv!(self, out);
     }
@@ -262,7 +269,7 @@ where
     }
 }
 
-impl<K: ToNoDelimiter + Ord, V: ToNoDelimiter> ToNoDelimiter for BTreeMap<K, V> {
+impl<K: ToNoDelimiter, V: ToNoDelimiter> ToNoDelimiter for BTreeMap<K, V> {
     fn to_no_delimiter_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
         inner_to_no_delimiter_iter_kv!(self, out);
     }
