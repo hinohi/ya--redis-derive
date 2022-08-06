@@ -12,7 +12,7 @@ struct A {
 }
 
 #[test]
-fn test_a() {
+fn test_struct_named() {
     let a = A {
         a: i32::MAX,
         b: Some(String::from("アイウ")),
@@ -31,10 +31,22 @@ fn test_a() {
 struct B(bool, Vec<u8>, String, i32);
 
 #[test]
-fn test_b() {
+fn test_struct_unnamed() {
     let b = B(true, vec![0; 1000], String::from("abc"), 123);
     let mut args = b.to_redis_args();
     assert_eq!(args.len(), 1);
     let b2 = B::from_redis_value(&Value::Data(args.pop().unwrap())).unwrap();
     assert_eq!(b, b2);
+}
+
+#[derive(Debug, Eq, PartialEq, Redis)]
+struct C;
+
+#[test]
+fn test_struct_unit() {
+    let c = C;
+    let mut args = c.to_redis_args();
+    assert_eq!(args.len(), 1);
+    let c2 = C::from_redis_value(&Value::Data(args.pop().unwrap())).unwrap();
+    assert_eq!(c, c2);
 }

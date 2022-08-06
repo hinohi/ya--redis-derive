@@ -79,7 +79,7 @@ impl DeriveRedis for DataStruct {
             Fields::Unit => quote! {
                 impl ::redis::ToRedisArgs for #type_ident {
                     fn write_redis_args<W : ?Sized + redis::RedisWrite>(&self, out: &mut W) {
-                        out.write_arg("");
+                        out.write_arg(b"");
                     }
                 }
                 impl ::redis::FromRedisValue for #type_ident {
