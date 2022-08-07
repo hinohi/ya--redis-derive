@@ -85,7 +85,7 @@ impl DeriveRedis for DataStruct {
             impl #impl_g ::redis::FromRedisValue for #type_ident #ty_g #wc {
                 fn from_redis_value(v: &::redis::Value) -> ::redis::RedisResult<Self> {
                     let mut b = match v {
-                        ::redis::Value::Data(v) => ::ya_binary_format::Bytes::copy_from_slice(v),
+                        ::redis::Value::Data(v) => ::ya_binary_format::Bytes::new(&v),
                         _ => return Err(::redis::RedisError::from((
                             ::redis::ErrorKind::TypeError,
                             "the data got from redis was not single binary data",

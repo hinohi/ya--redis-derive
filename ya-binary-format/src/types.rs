@@ -3,7 +3,9 @@ use std::{
     hash::{BuildHasher, Hash},
 };
 
-use bytes::{Buf, Bytes};
+use bytes::Buf;
+
+use crate::Bytes;
 
 pub trait ByteWriter {
     fn write(&mut self, b: &[u8]);
@@ -114,17 +116,17 @@ impl FromBytes for String {
     }
 }
 
-impl ToBytes for Bytes {
+impl ToBytes for bytes::Bytes {
     fn to_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
         self.len().to_bytes(out);
         out.write(self.chunk());
     }
 }
 
-impl FromBytes for Bytes {
+impl FromBytes for bytes::Bytes {
     fn from_bytes(b: &mut Bytes) -> Self {
         let n = usize::from_bytes(b);
-        let ret = Bytes::copy_from_slice(&b.chunk()[..n]);
+        let ret = bytes::Bytes::copy_from_slice(&b.chunk()[..n]);
         b.advance(n);
         ret
     }
@@ -328,7 +330,7 @@ mod tests {
     fn encode_decode<T: ToBytes + FromBytes + Debug + PartialEq>(t: &T) {
         let mut b = Vec::new();
         t.to_bytes(&mut b);
-        let mut b = Bytes::from(b);
+        let mut b = Bytes::new(&b);
         let v = T::from_bytes(&mut b);
         assert_eq!(b.remaining(), 0, "{:?}", v);
         assert_eq!(t, &v);

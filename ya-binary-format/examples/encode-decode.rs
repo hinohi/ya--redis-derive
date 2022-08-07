@@ -69,7 +69,7 @@ fn main() {
     println!("{:?}", buf);
     println!("{}", buf.len());
 
-    let mut b = Bytes::from(buf);
+    let mut b = Bytes::new(&buf);
     let v = MyStruct::from_bytes(&mut b);
     assert_eq!(a, v);
     assert_eq!(b.remaining(), 0);
