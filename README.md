@@ -11,9 +11,10 @@ Lower is better.
 
 ```rust
 use redis::{Client, Commands, Connection};
+use serde::{Deserialize, Serialize};
 use ya_redis_derive::Redis;
 
-#[derive(Debug, Eq, PartialEq, Redis)]
+#[derive(Debug, Eq, PartialEq, Redis, Deserialize, Serialize)]
 struct MyStruct {
     id: i64,
     name: String,
@@ -23,10 +24,10 @@ struct MyStruct {
 }
 
 fn main() {
-    // Example: docker run --rm -p 6379:6379 redis
+    // You must have redis running before
+    // example: `docker run --rm -p 6379:6379 redis`
     let redis_client = Client::open("redis://localhost").unwrap();
     let mut redis_con = redis_client.get_connection().expect("Fail to connect redis server");
-
     let a = MyStruct {
         id: 123,
         name: String::from("名無しの権兵衛"),
