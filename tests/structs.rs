@@ -1,11 +1,7 @@
 use redis::{FromRedisValue, ToRedisArgs, Value};
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use ya_redis_derive::Redis;
-
-// obstruct trait
-trait ByteWriter {}
-trait ToBytes {}
-trait FromBytes {}
 
 fn do_test<T: FromRedisValue + ToRedisArgs + PartialEq + Debug>(v: T) {
     let mut args = v.to_redis_args();
@@ -14,7 +10,7 @@ fn do_test<T: FromRedisValue + ToRedisArgs + PartialEq + Debug>(v: T) {
     assert_eq!(v, v2);
 }
 
-#[derive(Debug, Eq, PartialEq, Redis)]
+#[derive(Debug, Eq, PartialEq, Redis, Deserialize, Serialize)]
 struct A {
     a: i32,
     b: Option<String>,
@@ -37,7 +33,7 @@ fn test_struct_named() {
     do_test(a);
 }
 
-#[derive(Debug, Eq, PartialEq, Redis)]
+#[derive(Debug, Eq, PartialEq, Redis, Deserialize, Serialize)]
 struct B(bool, Vec<u8>, String, i32);
 
 #[test]
@@ -46,7 +42,7 @@ fn test_struct_unnamed() {
     do_test(b);
 }
 
-#[derive(Debug, Eq, PartialEq, Redis)]
+#[derive(Debug, Eq, PartialEq, Redis, Deserialize, Serialize)]
 struct C;
 
 #[test]
@@ -54,12 +50,12 @@ fn test_struct_unit() {
     do_test(C);
 }
 
-#[derive(Debug, Eq, PartialEq, Redis)]
+#[derive(Debug, Eq, PartialEq, Redis, Deserialize, Serialize)]
 struct D<T: Copy> {
     a: T,
 }
 
-#[derive(Debug, Eq, PartialEq, Redis)]
+#[derive(Debug, Eq, PartialEq, Redis, Deserialize, Serialize)]
 struct E<T: Eq>(T);
 
 #[test]
@@ -68,7 +64,7 @@ fn test_struct_generics() {
     do_test(E(vec![1, 2, 3]));
 }
 
-#[derive(Debug, Eq, PartialEq, Redis)]
+#[derive(Debug, Eq, PartialEq, Redis, Deserialize, Serialize)]
 struct Nest {
     a: A,
     b: B,

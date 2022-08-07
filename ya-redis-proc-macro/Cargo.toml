@@ -1,5 +1,5 @@
 [package]
-name = "ya-redis-derive"
+name = "ya-redis-proc-macro"
 version = "0.1.0"
 edition = "2021"
 
@@ -12,7 +12,3 @@ proc-macro = true
 proc-macro2 = "1.0"
 quote = "1.0"
 syn = { version = "1.0", features = ["derive"] }
-
-[dev-dependencies]
-redis = { version = "0.21", default-features = false }
-ya-binary-format = { path = "../ya-binary-format" }
