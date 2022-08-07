@@ -8,6 +8,7 @@ use redis::{Client, Commands, Connection};
 use serde::{Deserialize, Serialize};
 use ya_redis_derive::Redis;
 
+// `Redis` depends on `serde::Deserialize` and `Serialize`.
 #[derive(Debug, Eq, PartialEq, Redis, Deserialize, Serialize)]
 struct MyStruct {
     id: i64,
@@ -15,6 +16,15 @@ struct MyStruct {
     description: Option<String>,
     is_genius: bool,
     friend_ids: Vec<i64>,
+    some_type: MyEnum,
+}
+
+// not necessary derive Redis
+#[derive(Debug, Eq, PartialEq, Deserialize, Serialize)]
+enum MyEnum {
+    A,
+    B,
+    C,
 }
 
 # fn main() {
@@ -29,6 +39,7 @@ let a = MyStruct {
     description: Some(String::from("とてもクールなライブラリ")),
     is_genius: true,
     friend_ids: vec![0, 1, 1000000],
+    some_type: MyEnum::B,
 };
 let _: bool = redis_con.set("key-a", &a).expect("Fail to set");
 let a2: Option<MyStruct> = redis_con.get("key-a").expect("Fail to get");
