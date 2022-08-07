@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use ya_binary_format::{Buf, ByteWriter, Bytes, FromBytes, ToBytes};
+use ya_binary_format::{Buf, Bytes, FromBytes, ToBytes, Write};
 
 #[derive(Debug, Eq, PartialEq)]
 struct MyStruct {
@@ -14,7 +14,7 @@ struct MyStruct {
 }
 
 impl ToBytes for MyStruct {
-    fn to_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
+    fn to_bytes<W: ?Sized + Write>(&self, out: &mut W) {
         self.a.to_bytes(out);
         self.v.to_bytes(out);
         self.o1.to_bytes(out);
