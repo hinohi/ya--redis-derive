@@ -87,3 +87,17 @@ fn test_struct_nest() {
     };
     do_test(n);
 }
+
+#[derive(Debug, Eq, PartialEq, Redis, Deserialize, Serialize)]
+enum EnumOnlyUnit {
+    A,
+    B,
+    C,
+}
+
+#[test]
+fn test_enum_only_unit() {
+    do_test(EnumOnlyUnit::A);
+    do_test(EnumOnlyUnit::B);
+    do_test(EnumOnlyUnit::C);
+}

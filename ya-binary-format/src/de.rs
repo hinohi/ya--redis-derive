@@ -8,6 +8,7 @@ use crate::{bytes::Bytes, never::Never};
 
 pub struct Deserializer<'de> {
     data: Bytes<'de>,
+    current_variant_name: Option<&'static str>,
 }
 
 impl<'de> Deserializer<'de> {
@@ -187,14 +188,16 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     fn deserialize_enum<V: Visitor<'de>>(
         self,
         _name: &'static str,
-        _variants: &'static [&'static str],
-        _visitor: V,
+        variants: &'static [&'static str],
+        visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        unimplemented!()
+        let n = self.get_len();
+        self.current_variant_name = Some(variants[n]);
+        visitor.visit_enum(self)
     }
 
     fn deserialize_identifier<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        visitor.visit_unit()
+        visitor.visit_str(self.current_variant_name.take().unwrap())
     }
 
     fn deserialize_ignored_any<V: Visitor<'de>>(
@@ -271,12 +274,58 @@ impl<'de, 'a> de::MapAccess<'de> for FixedAccess<'a, 'de> {
     }
 }
 
+impl<'de, 'a> de::EnumAccess<'de> for &'a mut Deserializer<'de> {
+    type Error = Never;
+    type Variant = Self;
+
+    fn variant_seed<V>(self, seed: V) -> Result<(V::Value, Self::Variant), Self::Error>
+    where
+        V: DeserializeSeed<'de>,
+    {
+        seed.deserialize(&mut *self).and_then(|v| Ok((v, self)))
+    }
+}
+
+impl<'de, 'a> de::VariantAccess<'de> for &'a mut Deserializer<'de> {
+    type Error = Never;
+
+    fn unit_variant(self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        seed.deserialize(self)
+    }
+
+    fn tuple_variant<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_seq(FixedAccess::new(self, len))
+    }
+
+    fn struct_variant<V>(
+        self,
+        fields: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_seq(FixedAccess::new(self, fields.len()))
+    }
+}
+
 pub fn from_bytes<'a, T>(b: &'a [u8]) -> T
 where
     T: Deserialize<'a>,
 {
     let mut de = Deserializer {
         data: Bytes::new(b),
+        current_variant_name: None,
     };
     Deserialize::deserialize(&mut de).unwrap()
 }

@@ -1,33 +1,29 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{DataStruct, GenericParam, Generics, Ident, ImplGenerics, TypeGenerics, WhereClause};
+use syn::{GenericParam, Generics, Ident, ImplGenerics, TypeGenerics, WhereClause};
 
-use crate::DeriveRedis;
-
-impl DeriveRedis for DataStruct {
-    fn derive_redis(&self, type_ident: Ident, type_generics: Generics) -> proc_macro::TokenStream {
-        let (ser_impl_g, ser_ty_g, ser_wc) = split_for_ser(&type_generics);
-        let (de_impl_g, de_ty_g, de_wc) = split_for_de(&type_generics);
-        quote! (
-            impl #ser_impl_g ::redis::ToRedisArgs for #type_ident #ser_ty_g #ser_wc {
-                fn write_redis_args<W : ?Sized + redis::RedisWrite>(&self, out: &mut W) {
-                    out.write_arg(&::ya_redis_derive::to_bytes(self));
+pub fn derive_redis(type_ident: Ident, type_generics: Generics) -> proc_macro::TokenStream {
+    let (ser_impl_g, ser_ty_g, ser_wc) = split_for_ser(&type_generics);
+    let (de_impl_g, de_ty_g, de_wc) = split_for_de(&type_generics);
+    quote! (
+        impl #ser_impl_g ::redis::ToRedisArgs for #type_ident #ser_ty_g #ser_wc {
+            fn write_redis_args<W : ?Sized + redis::RedisWrite>(&self, out: &mut W) {
+                out.write_arg(&::ya_redis_derive::to_bytes(self));
+            }
+        }
+        impl #de_impl_g ::redis::FromRedisValue for #type_ident #de_ty_g #de_wc {
+            fn from_redis_value(v: &::redis::Value) -> ::redis::RedisResult<Self> {
+                match v {
+                    ::redis::Value::Data(v) => Ok(::ya_redis_derive::from_bytes(v)),
+                    _ => Err(::redis::RedisError::from((
+                        ::redis::ErrorKind::TypeError,
+                        "the data got from redis was not single binary data",
+                    ))),
                 }
             }
-            impl #de_impl_g ::redis::FromRedisValue for #type_ident #de_ty_g #de_wc {
-                fn from_redis_value(v: &::redis::Value) -> ::redis::RedisResult<Self> {
-                    match v {
-                        ::redis::Value::Data(v) => Ok(::ya_redis_derive::from_bytes(v)),
-                        _ => Err(::redis::RedisError::from((
-                            ::redis::ErrorKind::TypeError,
-                            "the data got from redis was not single binary data",
-                        ))),
-                    }
-                }
-            }
-        )
-        .into()
-    }
+        }
+    )
+    .into()
 }
 
 /// From https://github.com/TeXitoi/structopt/blob/master/structopt-derive/src/lib.rs

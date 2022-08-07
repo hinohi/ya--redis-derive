@@ -250,10 +250,11 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     fn serialize_tuple_variant(
         self,
         _name: &'static str,
-        _variant_index: u32,
+        variant_index: u32,
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleVariant, Self::Error> {
+        self.serialize_len(variant_index as usize);
         Ok(self)
     }
 
@@ -283,10 +284,11 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     fn serialize_struct_variant(
         self,
         _name: &'static str,
-        _variant_index: u32,
+        variant_index: u32,
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
+        self.serialize_len(variant_index as usize);
         Ok(self)
     }
 }
