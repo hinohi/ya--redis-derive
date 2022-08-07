@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use rand::{seq::SliceRandom, Rng};
 use rand_pcg::Mcg128Xsl64;
-use redis::{Client, Commands};
+use redis::{Client, Commands, Connection};
 use serde::{Deserialize, Serialize};
 use ya_redis_derive::Redis;
 
@@ -10,6 +10,7 @@ const N_KEYS: usize = 100;
 const N_READ_HEAVY: usize = 100;
 
 static REDIS_ENDPOINT: &str = "redis://localhost:6379";
+static DRAGONFLY_ENDPOINT: &str = "redis://localhost:16379";
 
 #[derive(Redis, Deserialize, Serialize)]
 struct A {
@@ -36,11 +37,8 @@ impl A {
     }
 }
 
-fn redis_ya_redis<R: Rng>(rng: &mut R) {
-    let client = Client::open(REDIS_ENDPOINT).unwrap();
-    let mut con = client.get_connection().unwrap();
+fn via_ya_redis<R: Rng>(server: &str, rng: &mut R, con: &mut Connection) {
     let mut keys = Vec::new();
-
     let start = Instant::now();
     for _ in 0..N_KEYS {
         let a = A::gen(rng);
@@ -57,8 +55,7 @@ fn redis_ya_redis<R: Rng>(rng: &mut R) {
     }
     let ms = start.elapsed().as_millis();
     println!(
-        "redis ya_redis: set-get: total={}ms per_key={}ms",
-        ms,
+        "{server} ya_redis: total={ms}ms per_key={}ms",
         ms / N_KEYS as u128
     );
     for key in keys {
@@ -66,11 +63,8 @@ fn redis_ya_redis<R: Rng>(rng: &mut R) {
     }
 }
 
-fn redis_serde_json<R: Rng>(rng: &mut R) {
-    let client = Client::open(REDIS_ENDPOINT).unwrap();
-    let mut con = client.get_connection().unwrap();
+fn via_serde_json<R: Rng>(server: &str, rng: &mut R, con: &mut Connection) {
     let mut keys = Vec::new();
-
     let start = Instant::now();
     for _ in 0..N_KEYS {
         let a = A::gen(rng);
@@ -89,8 +83,7 @@ fn redis_serde_json<R: Rng>(rng: &mut R) {
     }
     let ms = start.elapsed().as_millis();
     println!(
-        "redis serde_json: set-get: total={}ms per_key={}ms",
-        ms,
+        "{server} serde_json: total={ms}ms per_key={}ms",
         ms / N_KEYS as u128
     );
     for key in keys {
@@ -99,6 +92,13 @@ fn redis_serde_json<R: Rng>(rng: &mut R) {
 }
 
 fn main() {
-    redis_serde_json(&mut Mcg128Xsl64::new(1));
-    redis_ya_redis(&mut Mcg128Xsl64::new(1));
+    let client = Client::open(REDIS_ENDPOINT).unwrap();
+    let mut con = client.get_connection().unwrap();
+    via_ya_redis("redis", &mut Mcg128Xsl64::new(1), &mut con);
+    via_serde_json("redis", &mut Mcg128Xsl64::new(1), &mut con);
+
+    let client = Client::open(DRAGONFLY_ENDPOINT).unwrap();
+    let mut con = client.get_connection().unwrap();
+    via_ya_redis("dragonfly", &mut Mcg128Xsl64::new(1), &mut con);
+    via_serde_json("dragonfly", &mut Mcg128Xsl64::new(1), &mut con);
 }
