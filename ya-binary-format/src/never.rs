@@ -21,3 +21,9 @@ impl serde::ser::Error for Never {
         unreachable!()
     }
 }
+
+impl serde::de::Error for Never {
+    fn custom<T: fmt::Display>(_msg: T) -> Self {
+        unreachable!()
+    }
+}

@@ -1,11 +1,11 @@
 use bytes::Buf;
 
-pub struct Bytes<'a> {
+pub(crate) struct Bytes<'a> {
     data: &'a [u8],
 }
 
 impl<'a> Bytes<'a> {
-    pub fn new(data: &'a [u8]) -> Bytes<'a> {
+    pub(crate) fn new(data: &'a [u8]) -> Bytes<'a> {
         Bytes { data }
     }
 }

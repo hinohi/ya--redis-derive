@@ -1,6 +1,6 @@
 use serde::ser::{self, Serialize};
 
-use crate::{never::Never, Write};
+use crate::{io::Write, never::Never};
 
 pub struct Serializer<W> {
     writer: W,
@@ -120,8 +120,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
 
     #[inline]
     fn serialize_char(self, v: char) -> Result<Self::Ok, Self::Error> {
-        self.writer.write(v.to_string().as_bytes());
-        Ok(())
+        self.serialize_str(&v.to_string())
     }
 
     #[inline]
@@ -409,4 +408,10 @@ impl<'a, W: Write> ser::SerializeStructVariant for &'a mut Serializer<W> {
     fn end(self) -> Result<Self::Ok, Self::Error> {
         Ok(())
     }
+}
+
+pub fn to_bytes<V: ?Sized + Serialize>(v: &V) -> Vec<u8> {
+    let mut ser = Serializer { writer: Vec::new() };
+    v.serialize(&mut ser).unwrap();
+    ser.writer
 }

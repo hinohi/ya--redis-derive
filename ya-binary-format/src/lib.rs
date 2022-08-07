@@ -1,10 +1,10 @@
 mod bytes;
 pub mod de;
-mod io;
+pub mod io;
 pub mod never;
 pub mod ser;
 
-pub use crate::bytes::Bytes;
-pub use crate::io::Write;
-
-pub use ::bytes::Buf;
+pub use crate::{
+    de::{from_bytes, Deserializer},
+    ser::{to_bytes, Serializer},
+};
