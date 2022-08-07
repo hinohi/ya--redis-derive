@@ -1,4 +1,7 @@
-use serde::ser::{self, Serialize};
+use serde::{
+    ser::{self, Serialize},
+    serde_if_integer128,
+};
 
 use crate::{io::Write, never::Never};
 
@@ -82,6 +85,14 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         Ok(())
     }
 
+    serde_if_integer128! {
+        #[inline]
+        fn serialize_i128(self, v: i128) -> Result<Self::Ok, Self::Error> {
+            self.writer.write(&v.to_le_bytes());
+            Ok(())
+        }
+    }
+
     #[inline]
     fn serialize_u8(self, v: u8) -> Result<Self::Ok, Self::Error> {
         self.writer.write(&v.to_le_bytes());
@@ -104,6 +115,14 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     fn serialize_u64(self, v: u64) -> Result<Self::Ok, Self::Error> {
         self.writer.write(&v.to_le_bytes());
         Ok(())
+    }
+
+    serde_if_integer128! {
+        #[inline]
+        fn serialize_u128(self, v: u128) -> Result<Self::Ok, Self::Error> {
+            self.writer.write(&v.to_le_bytes());
+            Ok(())
+        }
     }
 
     #[inline]

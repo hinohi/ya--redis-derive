@@ -1,5 +1,8 @@
 use bytes::Buf;
-use serde::de::{self, Deserialize, DeserializeSeed, Visitor};
+use serde::{
+    de::{self, Deserialize, DeserializeSeed, Visitor},
+    serde_if_integer128,
+};
 
 use crate::{bytes::Bytes, never::Never};
 
@@ -55,6 +58,12 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         visitor.visit_i64(self.data.get_i64_le())
     }
 
+    serde_if_integer128! {
+        fn deserialize_i128<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+            visitor.visit_i128(self.data.get_i128_le())
+        }
+    }
+
     fn deserialize_u8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         visitor.visit_u8(self.data.get_u8())
     }
@@ -69,6 +78,12 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
     fn deserialize_u64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         visitor.visit_u64(self.data.get_u64_le())
+    }
+
+    serde_if_integer128! {
+        fn deserialize_u128<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+            visitor.visit_u128(self.data.get_u128_le())
+        }
     }
 
     fn deserialize_f32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
