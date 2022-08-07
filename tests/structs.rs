@@ -21,7 +21,7 @@ struct A {
 }
 
 #[test]
-fn test_struct_named() {
+fn struct_named() {
     let a = A {
         a: i32::MAX,
         b: Some(String::from("アイウ")),
@@ -37,7 +37,7 @@ fn test_struct_named() {
 struct B(bool, Vec<u8>, String, i32);
 
 #[test]
-fn test_struct_unnamed() {
+fn struct_unnamed() {
     let b = B(true, vec![0; 1000], String::from("abc"), 123);
     do_test(b);
 }
@@ -46,7 +46,7 @@ fn test_struct_unnamed() {
 struct C;
 
 #[test]
-fn test_struct_unit() {
+fn struct_unit() {
     do_test(C);
 }
 
@@ -59,7 +59,7 @@ struct D<T: Copy> {
 struct E<T: Eq>(T);
 
 #[test]
-fn test_struct_generics() {
+fn struct_generics() {
     do_test(D { a: 42i32 });
     do_test(E(vec![1, 2, 3]));
 }
@@ -72,7 +72,7 @@ struct Nest {
 }
 
 #[test]
-fn test_struct_nest() {
+fn struct_nest() {
     let n = Nest {
         a: A {
             a: 0,
@@ -96,8 +96,41 @@ enum EnumOnlyUnit {
 }
 
 #[test]
-fn test_enum_only_unit() {
+fn enum_only_unit() {
     do_test(EnumOnlyUnit::A);
     do_test(EnumOnlyUnit::B);
     do_test(EnumOnlyUnit::C);
+    do_test(E(vec![EnumOnlyUnit::A, EnumOnlyUnit::C, EnumOnlyUnit::B]));
+}
+
+#[derive(Debug, Eq, PartialEq, Redis, Deserialize, Serialize)]
+enum EnumMany {
+    A,
+    B(i128),
+    C(bool, i16),
+    D { a: i8 },
+    E,
+    F { b: (), c: i32, d: u32 },
+}
+
+#[test]
+fn enum_many() {
+    do_test(EnumMany::A);
+    do_test(EnumMany::B(0));
+    do_test(EnumMany::B(i128::MAX));
+    do_test(EnumMany::B(i128::MIN));
+    do_test(EnumMany::C(true, 0));
+    do_test(EnumMany::C(true, 1));
+    do_test(EnumMany::C(true, 100));
+    do_test(EnumMany::C(false, 0));
+    do_test(EnumMany::C(false, 1));
+    do_test(EnumMany::C(false, 100));
+    do_test(EnumMany::D { a: 0 });
+    do_test(EnumMany::D { a: 1 });
+    do_test(EnumMany::D { a: 127 });
+    do_test(EnumMany::E);
+    do_test(EnumMany::F { b: (), c: 0, d: 0 });
+    do_test(EnumMany::F { b: (), c: 0, d: 10 });
+    do_test(EnumMany::F { b: (), c: -1, d: 1 });
+    do_test(EnumMany::F { b: (), c: -1, d: 1 });
 }
