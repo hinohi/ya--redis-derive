@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use ya_redis_derive::Redis;
 
 const N_KEYS: usize = 100;
-const N_READ_HEAVY: usize = 100;
+const N_READ_HEAVY: usize = 10;
 
 static REDIS_ENDPOINT: &str = "redis://localhost:6379";
 static DRAGONFLY_ENDPOINT: &str = "redis://localhost:16379";
@@ -19,6 +19,9 @@ struct A {
     score: u64,
     description: Option<String>,
 }
+
+#[derive(Redis)]
+struct V(Vec<A>);
 
 impl A {
     fn gen<R: Rng>(rng: &mut R) -> A {
@@ -37,68 +40,120 @@ impl A {
     }
 }
 
-fn via_ya_redis<R: Rng>(server: &str, rng: &mut R, con: &mut Connection) {
+fn via_ya_redis<R: Rng>(server: &str, rng: &mut R, con: &mut Connection, n: usize) -> u128 {
     let mut keys = Vec::new();
     let start = Instant::now();
-    for _ in 0..N_KEYS {
-        let a = A::gen(rng);
-        let key = format!("{}-{}", a.id, a.name);
-        let _: bool = con.set(&key, &a).unwrap();
+    for i in 0..N_KEYS {
+        let a = (0..n).map(|_| A::gen(rng)).collect::<Vec<_>>();
+        let key = format!("{}", i);
+        let _: bool = con.set(&key, &V(a)).unwrap();
         let mut scores = 0;
         for _ in 0..N_READ_HEAVY {
-            if let Some(a) = con.get::<_, Option<A>>(&key).unwrap() {
-                scores += a.score as u128;
+            if let Some(v) = con.get::<_, Option<V>>(&key).unwrap() {
+                for a in v.0 {
+                    scores += a.score as u128;
+                }
             }
         }
-        assert_eq!(scores, a.score as u128 * N_READ_HEAVY as u128);
+        assert!(scores > n as u128 * N_READ_HEAVY as u128 * 1000);
         keys.push(key);
     }
     let ms = start.elapsed().as_millis();
     println!(
-        "{server} ya_redis: total={ms}ms per_key={}ms",
+        "{} ya_redis: n={} total={}ms per_key={}ms",
+        server,
+        n,
+        ms,
         ms / N_KEYS as u128
     );
     for key in keys {
         let _: bool = con.del(key).unwrap();
     }
+    ms
 }
 
-fn via_serde_json<R: Rng>(server: &str, rng: &mut R, con: &mut Connection) {
+fn via_serde_json<R: Rng>(
+    server: &str,
+    rng: &mut R,
+    con: &mut Connection,
+    n: usize,
+) -> (u128, usize) {
     let mut keys = Vec::new();
     let start = Instant::now();
-    for _ in 0..N_KEYS {
-        let a = A::gen(rng);
-        let key = format!("{}-{}", a.id, a.name);
+    let mut bytes = 0;
+    for i in 0..N_KEYS {
+        let a = (0..n).map(|_| A::gen(rng)).collect::<Vec<_>>();
+        let key = format!("{}", i);
         let s = serde_json::to_string(&a).unwrap();
+        bytes += s.as_bytes().len();
         let _: bool = con.set(&key, s).unwrap();
         let mut scores = 0;
         for _ in 0..N_READ_HEAVY {
             if let Some(s) = con.get::<_, Option<String>>(&key).unwrap() {
-                let a: A = serde_json::from_str(&s).unwrap();
-                scores += a.score as u128;
+                let v: Vec<A> = serde_json::from_str(&s).unwrap();
+                for a in v {
+                    scores += a.score as u128;
+                }
             }
         }
-        assert_eq!(scores, a.score as u128 * N_READ_HEAVY as u128);
+        assert!(scores > n as u128 * N_READ_HEAVY as u128 * 1000);
         keys.push(key);
     }
     let ms = start.elapsed().as_millis();
     println!(
-        "{server} serde_json: total={ms}ms per_key={}ms",
+        "{} serde_json: n={} total={}ms per_key={}ms",
+        server,
+        n,
+        ms,
         ms / N_KEYS as u128
     );
     for key in keys {
         let _: bool = con.del(key).unwrap();
     }
+    (ms, bytes / N_KEYS)
+}
+
+#[derive(Default)]
+struct StaticRecord {
+    redis_ya_redis_ms: u128,
+    redis_serde_json_ms: u128,
+    dragonfly_ya_redis_ms: u128,
+    dragonfly_serde_json_ms: u128,
+    json_bytes: usize,
+}
+
+impl StaticRecord {
+    fn dump(&self) {
+        println!(
+            "{},{},{},{},{}",
+            self.json_bytes,
+            self.redis_ya_redis_ms,
+            self.redis_serde_json_ms,
+            self.dragonfly_ya_redis_ms,
+            self.dragonfly_serde_json_ms
+        );
+    }
 }
 
 fn main() {
-    let client = Client::open(REDIS_ENDPOINT).unwrap();
-    let mut con = client.get_connection().unwrap();
-    via_ya_redis("redis", &mut Mcg128Xsl64::new(1), &mut con);
-    via_serde_json("redis", &mut Mcg128Xsl64::new(1), &mut con);
+    let mut records = Vec::new();
+    for n in [1, 4, 16, 64, 256, 1024, 4096] {
+        let mut r = StaticRecord::default();
+        let client = Client::open(REDIS_ENDPOINT).unwrap();
+        let mut con = client.get_connection().unwrap();
+        r.redis_ya_redis_ms = via_ya_redis("redis", &mut Mcg128Xsl64::new(1), &mut con, n);
+        let (ms, b) = via_serde_json("redis", &mut Mcg128Xsl64::new(1), &mut con, n);
+        r.redis_serde_json_ms = ms;
+        r.json_bytes = b;
 
-    let client = Client::open(DRAGONFLY_ENDPOINT).unwrap();
-    let mut con = client.get_connection().unwrap();
-    via_ya_redis("dragonfly", &mut Mcg128Xsl64::new(1), &mut con);
-    via_serde_json("dragonfly", &mut Mcg128Xsl64::new(1), &mut con);
+        let client = Client::open(DRAGONFLY_ENDPOINT).unwrap();
+        let mut con = client.get_connection().unwrap();
+        r.dragonfly_ya_redis_ms = via_ya_redis("dragonfly", &mut Mcg128Xsl64::new(1), &mut con, n);
+        r.dragonfly_serde_json_ms =
+            via_serde_json("dragonfly", &mut Mcg128Xsl64::new(1), &mut con, n).0;
+        records.push(r);
+    }
+    for r in records {
+        r.dump();
+    }
 }
