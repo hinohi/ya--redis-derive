@@ -1,6 +1,20 @@
 [workspace]
 members = [
-    "ya-redis-derive",
+    "ya-redis-proc-macro",
     "ya-binary-format",
     "bench",
+    ".",
 ]
+
+[package]
+name = "ya-redis-derive"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ya-redis-proc-macro = { path = "ya-redis-proc-macro" }
+ya-binary-format = { path = "ya-binary-format" }
+
+[dev-dependencies]
+serde = { version = "1.0", features = ["derive"] }
+redis = { version = "0.21", default-features = false }

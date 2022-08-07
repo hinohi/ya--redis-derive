@@ -1,7 +1,10 @@
 mod bytes;
-mod types;
+pub mod de;
+pub mod io;
+pub mod never;
+pub mod ser;
 
-pub use crate::bytes::Bytes;
-pub use crate::types::*;
-
-pub use ::bytes::Buf;
+pub use crate::{
+    de::{from_bytes, Deserializer},
+    ser::{to_bytes, Serializer},
+};

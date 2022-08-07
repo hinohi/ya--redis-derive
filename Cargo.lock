@@ -22,7 +22,6 @@ dependencies = [
  "redis",
  "serde",
  "serde_json",
- "ya-binary-format",
  "ya-redis-derive",
 ]
 
@@ -322,15 +321,24 @@ name = "ya-binary-format"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "serde",
 ]
 
 [[package]]
 name = "ya-redis-derive"
 version = "0.1.0"
 dependencies = [
+ "redis",
+ "serde",
+ "ya-binary-format",
+ "ya-redis-proc-macro",
+]
+
+[[package]]
+name = "ya-redis-proc-macro"
+version = "0.1.0"
+dependencies = [
  "proc-macro2",
  "quote",
- "redis",
  "syn",
- "ya-binary-format",
 ]

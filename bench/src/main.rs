@@ -20,7 +20,7 @@ struct A {
     description: Option<String>,
 }
 
-#[derive(Redis)]
+#[derive(Redis, Deserialize, Serialize)]
 struct V(Vec<A>);
 
 impl A {

@@ -1,8 +1,8 @@
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use ya_binary_format::{from_bytes, to_bytes};
 
-use ya_binary_format::{Buf, ByteWriter, Bytes, FromBytes, ToBytes};
-
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
 struct MyStruct {
     a: i32,
     v: Vec<usize>,
@@ -11,39 +11,6 @@ struct MyStruct {
     s: String,
     t: (u32, u64),
     m: HashMap<String, Option<String>>,
-}
-
-impl ToBytes for MyStruct {
-    fn to_bytes<W: ?Sized + ByteWriter>(&self, out: &mut W) {
-        self.a.to_bytes(out);
-        self.v.to_bytes(out);
-        self.o1.to_bytes(out);
-        self.o2.to_bytes(out);
-        self.s.to_bytes(out);
-        self.t.to_bytes(out);
-        self.m.to_bytes(out);
-    }
-}
-
-impl FromBytes for MyStruct {
-    fn from_bytes(b: &mut Bytes) -> Self {
-        let a = FromBytes::from_bytes(b);
-        let v = FromBytes::from_bytes(b);
-        let o1 = FromBytes::from_bytes(b);
-        let o2 = FromBytes::from_bytes(b);
-        let s = FromBytes::from_bytes(b);
-        let t = FromBytes::from_bytes(b);
-        let m = FromBytes::from_bytes(b);
-        MyStruct {
-            a,
-            v,
-            o1,
-            o2,
-            s,
-            t,
-            m,
-        }
-    }
 }
 
 fn main() {
@@ -64,13 +31,10 @@ fn main() {
     };
     println!("{:?}", a);
 
-    let mut buf = Vec::new();
-    a.to_bytes(&mut buf);
+    let buf = to_bytes(&a);
     println!("{:?}", buf);
     println!("{}", buf.len());
 
-    let mut b = Bytes::new(&buf);
-    let v = MyStruct::from_bytes(&mut b);
+    let v: MyStruct = from_bytes(&buf);
     assert_eq!(a, v);
-    assert_eq!(b.remaining(), 0);
 }
